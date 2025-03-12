@@ -1,0 +1,16 @@
+/* overriding caspian.css values for java fx charts */
+
+.chart-symbol { /* solid circle */
+    /*-fx-background-radius: 10px;*/
+    /*-fx-padding: 10px;*/
+}
+
+.default-color2.chart-symbol { /* solid diamond */
+    -fx-background-radius: 10;
+    -fx-padding: 11px 9px 11px 9px;
+}
+
+.default-color4.chart-symbol { /* solid triangle */
+    -fx-background-radius: 10;
+    -fx-padding: 11px 9px 11px 9px;
+}

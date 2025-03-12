@@ -1,0 +1,178 @@
+package com.ibbe.websocket;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ibbe.cfg.ApplicationContextProvider;
+import com.ibbe.entity.BitsoDataAggregator;
+import com.ibbe.entity.OrderBook;
+import com.ibbe.entity.OrderBookPayload;
+import com.ibbe.executor.XchangeRatePoller;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.stereotype.Component;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import java.io.EOFException;
+import java.io.IOException;
+
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+
+/**
+ * websocket endpoint to serve the javafx ui with refreshed orderbook info
+ * 
+ * @deprecated This class is deprecated and will be removed in a future release.
+ * Use {@link OrderbookPublisherService} instead, which provides the same functionality
+ * using Spring's STOMP messaging infrastructure.
+ */
+@Deprecated
+@Component
+public class BitsoOrderbookMonitorEndpoint extends TextWebSocketHandler {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(BitsoOrderbookMonitorEndpoint.class.getName());
+  private final Set<WebSocketSession> sessions = new CopyOnWriteArraySet<>();
+
+  private static boolean cont = true;
+  private static ObjectMapper objectMapper = new ObjectMapper();
+
+  @Autowired
+  private BitsoDataAggregator bitsoDataAggregator;
+
+  public BitsoOrderbookMonitorEndpoint() {
+    LOGGER.info("DEPRECATED: BitsoOrderbookMonitorEndpoint is deprecated and will be removed in a future release. Use OrderbookPublisherService instead.");
+  }
+
+  @PostConstruct
+  public void init() {
+    LOGGER.info("DEPRECATED: BitsoOrderbookMonitorEndpoint initialization - this endpoint is no longer registered in WebSocketConfig.");
+  }
+
+  /**
+   * the Websocket endpoint will be called when the JavaFX window opens up already
+   *
+   * @param session
+   */
+  @Override
+  public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+    LOGGER.info("DEPRECATED ENDPOINT: Connection established to BitsoOrderbookMonitorEndpoint - ID: {} open: {}", session.getId(), session.isOpen());
+    sessions.add(session);
+    session.sendMessage(new TextMessage("{\"success\": \"true\"}"));
+  }
+
+  /**
+   * once triggered, sending the message with the refreshed Orderbook info
+   * to the websocket client
+   *
+   * @param session
+   */
+  @Override
+  public void handleTextMessage(WebSocketSession session, TextMessage anyMessage) throws Exception {
+    try {
+      String obpString = "";
+      try {
+        while (cont && session.isOpen()) {
+          Thread.sleep(2000);
+          if (bitsoDataAggregator == null) {
+            ApplicationContext context = ApplicationContextProvider.getApplicationContext();
+            bitsoDataAggregator = context.getBean(BitsoDataAggregator.class);
+          }
+          
+          // Only proceed if the session is still open
+          if (!session.isOpen()) {
+            LOGGER.warn("Session closed during processing, stopping message loop");
+            break;
+          }
+          
+          OrderBookPayload obp = bitsoDataAggregator.getOrderbookPayload();
+          OrderBook orderBook = new OrderBook(true, obp);
+          
+          // Limit the number of trades to reduce message size
+          Object[] recentTrades = bitsoDataAggregator.getRecentTrades();
+          // If there are too many trades, limit to the most recent 20
+          if (recentTrades != null && recentTrades.length > 20) {
+            Object[] limitedTrades = new Object[20];
+            System.arraycopy(recentTrades, recentTrades.length - 20, limitedTrades, 0, 20);
+            orderBook.setTrades(limitedTrades);
+          } else {
+            orderBook.setTrades(recentTrades);
+          }
+          
+          obpString = objectMapper.writeValueAsString(orderBook);
+          
+          // Check if the message is too large
+          if (obpString.length() > 900000) {
+            LOGGER.warn("Message too large ({}), skipping", obpString.length());
+            continue;
+          }
+          
+          // Only send if the session is still open
+          if (session.isOpen()) {
+            session.sendMessage(new TextMessage(obpString));
+          } else {
+            LOGGER.warn("Session closed before sending message, stopping message loop");
+            break;
+          }
+        }
+      } catch (IOException e) {
+        if (session.isOpen()) {
+          LOGGER.error("!!!!!! RETRYING because of {}; failed message length: {}", 
+                      e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), 
+                      obpString.length(), e);
+          Thread.sleep(2000);
+          if (session.isOpen()) {
+            handleTextMessage(session, anyMessage);
+          } else {
+            LOGGER.warn("Session closed after IOException, not retrying");
+          }
+        } else {
+          LOGGER.warn("Session closed during IOException, not retrying");
+        }
+      }
+    } catch (Exception ex) {
+      LOGGER.error("!!!!! !!!! !!!!! !!!!!!!!! ", ex);
+    }
+  }
+
+  @Override
+  public void handleTransportError(WebSocketSession session, Throwable exception) {
+//  @OnError
+//  public void onError(Session session, Throwable t) {
+    try {
+      session.close();
+      sessions.remove(session);
+      exception.printStackTrace();
+      int count = 0;
+      Throwable root = exception;
+      while (root.getCause() != null && count < 20) {
+        root = root.getCause();
+        count++;
+      }
+      if (root instanceof EOFException) {
+        // Assume this is triggered by the user closing their browser and
+        // ignore it.
+      } else if (!session.isOpen() && root instanceof IOException) {
+        // IOException after close. Assume this is a variation of the user
+        // closing their browser (or refreshing very quickly) and ignore it.
+      } else {
+        LOGGER.error("onError: {}", exception.toString(), exception);
+      }
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+  }
+
+  @Override
+  public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+//  @OnClose
+//  public void onClose(Session session) throws Throwable {
+    sessions.remove(session);
+    LOGGER.info("DEPRECATED ENDPOINT: Connection closed to BitsoOrderbookMonitorEndpoint - ID: {} open: {}", session.getId(), session.isOpen());
+  }
+
+}
