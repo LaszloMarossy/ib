@@ -92,7 +92,8 @@ public class XchangeRatePoller extends AsyncExecutor implements ApplicationListe
       }
       while(true) {
         try {
-          Thread.sleep(intervalSec * 1000000);
+          Thread.sleep(intervalSec * 1000);
+          
           // get external trades once
           LOGGER.info("$$$ getting exchange rate ");
           usdMxn = requestUsdMxn();
@@ -102,8 +103,13 @@ public class XchangeRatePoller extends AsyncExecutor implements ApplicationListe
           }
           LOGGER.info("$$$ USDMXN=".concat(usdMxn.toString()));
         } catch (Exception e) {
-          LOGGER.error(e.getMessage());
-//          Thread.sleep(2000);
+          LOGGER.error("Error in exchange rate polling: {}", e.getMessage());
+          try {
+            Thread.sleep(3000); // Brief pause before continuing the loop
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return "Interrupted";
+          }
         }
       }
     };
@@ -112,20 +118,43 @@ public class XchangeRatePoller extends AsyncExecutor implements ApplicationListe
 
   private Double requestUsdMxn() {
     ExchangeRate exchangeRate = new ExchangeRate();
+    String result = null;
     try {
       RestClient defaultClient = RestClient.create();
-      String result = defaultClient.get()
-        .uri(POLLER_URL)
-        .retrieve()
-        .body(String.class);
-//      Response response = Request.get(POLLER_URL).execute();
-//      String result = response.returnContent().asString();
-      System.out.println(result);
+      
+      try {
+        result = defaultClient.get()
+          .uri(POLLER_URL)
+          .retrieve()
+          .body(String.class);
+      } catch (Exception e) {
+        LOGGER.warn("Error fetching exchange rate: {}", e.getMessage());
+        return null;
+      }
+      
+      // Validate the response
+      if (result == null || result.isEmpty()) {
+        LOGGER.warn("Empty response received from exchange rate API");
+        return null;
+      }
+      
+      LOGGER.debug("Exchange rate API response: {}", result);
       exchangeRate = objectMapper.readValue(result, ExchangeRate.class);
+      
+      // Validate the parsed object
+      if (exchangeRate == null || exchangeRate.getQuotes() == null || exchangeRate.getQuotes().getUSDMXN() == null) {
+        LOGGER.warn("Failed to parse exchange rate data or USDMXN is null");
+        return null;
+      }
+      
+      return exchangeRate.getQuotes().getUSDMXN();
     } catch (Exception e) {
-      e.printStackTrace();
+      LOGGER.error("Error processing exchange rate: {}", e.getMessage());
+      if (result != null) {
+        LOGGER.error("Response was: {}", result);
+      }
+      return null;
     }
-    return exchangeRate.getQuotes().getUSDMXN();
   }
 
   public Double getUsdMxn() {

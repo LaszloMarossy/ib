@@ -93,7 +93,7 @@ Contains the Spring Boot server application that provides WebSocket endpoints an
 ### building with changes taking effect steps - back-end changes in the server module
 
 ```bash
-cd /Users/laszlo/dev/code/ib/ib-server 
+cd /Users/laszlo/dev/code/ibtrader/ib-server 
 mvn clean package -U | cat
 # verify byte code for changes, if necessary:
 javap -c -p target/classes/com/ibbe/executor/TradingExecutor.class | grep -A 20 refreshDisplayWithNewTrade | cat
@@ -106,7 +106,7 @@ java -jar target/ib-server-0.0.1-SNAPSHOT.jar
 # create a Kafka configuration file to set up proper data retention and session timeout:
 mkdir -p /tmp/kafka-config
 # a script to start Kafka with our custom configuration:
-chmod +x /Users/laszlo/dev/code/ib/start-kafka.sh
+chmod +x /Users/laszlo/dev/code/ibtrader/start-kafka.sh
 
 # kafka config in /tmp/kafka-config/server.properties
 # create-persistent-topic.sh to create durable topic
@@ -159,13 +159,13 @@ dataDir=/tmp/zookeeper
 
 ```
 
-### shell script:/Users/laszlo/dev/code/ib/create-persistent-topic.sh
+### shell script:/Users/laszlo/dev/code/ibtrader/create-persistent-topic.sh
 
-### shell script:/Users/laszlo/dev/code/ib/setup-default-consumer-group.sh
+### shell script:/Users/laszlo/dev/code/ibtrader/setup-default-consumer-group.sh
 
-### a script to monitor the Kafka topic during periods of inactivity: /Users/laszlo/dev/code/ib/monitor-kafka-health.sh
+### a script to monitor the Kafka topic during periods of inactivity: /Users/laszlo/dev/code/ibtrader/monitor-kafka-health.sh
 
-### a cron job script to periodically check Kafka health during long periods of inactivity: /Users/laszlo/dev/code/ib/setup-kafka-monitor-cron.sh
+### a cron job script to periodically check Kafka health during long periods of inactivity: /Users/laszlo/dev/code/ibtrader/setup-kafka-monitor-cron.sh
 
 ## Kafka Configuration for Long Periods of Inactivity
 

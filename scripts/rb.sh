@@ -1,5 +1,5 @@
 #!/bin/bash
-cd "/Users/laszlo/dev/code/ib/ib-client"
+cd "/Users/laszlo/dev/code/ibtrader/ib-client"
 
 # Build the application
 echo "Building the client application..."

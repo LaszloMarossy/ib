@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Path to the monitor script
-MONITOR_SCRIPT="/Users/laszlo/dev/code/ib/scripts/cron-kafka-status.sh"
+MONITOR_SCRIPT="/Users/laszlo/dev/code/ibtrader/scripts/cron-kafka-status.sh"
 
 # Create a temporary file for the crontab
 TEMP_CRONTAB=$(mktemp)

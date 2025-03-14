@@ -69,26 +69,71 @@ public class BitsoOrderbookPoller extends AsyncExecutor implements ApplicationLi
     LOGGER.info("starting to poll the orderbook from Bitso");
     Callable<String> call = () -> {
       String result = "0";
+      int retryCount = 0;
+      int maxRetries = 5;
+      long retryDelayMs = 3000; // Start with 3 seconds
+      
       while (true) {
         try {
+          // Create a simple RestClient without custom configuration
           RestClient restClient = RestClient.create();
-          result = restClient.get()
-                  .uri(BITSO_GET_ORDERBOOK_URL)
-                  .retrieve()
-                  .body(String.class);
+          
+          try {
+            result = restClient.get()
+                    .uri(BITSO_GET_ORDERBOOK_URL)
+                    .retrieve()
+                    .body(String.class);
+          } catch (Exception e) {
+            LOGGER.warn("Error fetching orderbook: {}", e.getMessage());
+            throw e;
+          }
+
+          // Validate the response before parsing
+          if (result == null || result.isEmpty()) {
+              throw new IllegalStateException("Empty response received from Bitso API");
+          }
+          
+          // Check if the response indicates an error
+          if (result.contains("\"success\":false")) {
+              LOGGER.warn("Bitso API returned an error response: {}", result);
+              throw new IllegalStateException("Bitso API returned an error response");
+          }
 
           OrderBook orderBook = objectMapper.readValue(result, OrderBook.class);
+          
+          // Validate the parsed object
+          if (orderBook == null || orderBook.getPayload() == null) {
+              throw new IllegalStateException("Failed to parse orderbook data or payload is null");
+          }
+          
           bitsoDataAggregator.setOrderBookPayload(orderBook.getPayload());
           //run once only at time of export from Bitso
           bitsoDataAggregator.setOrderBookCurrencyToUSD();
-//          LOGGER.info("getting bitso orderbook ");
+          
+          // Reset retry count and delay on successful call
+          retryCount = 0;
+          retryDelayMs = 3000;
+          
+          // Sleep for the configured polling interval
           Thread.sleep(orderbookPollingIntervalSec * 1000L);
         } catch (Exception e) {
           LOGGER.error("FAILED ON MESSAGE " + result);
-          e.printStackTrace();
           LOGGER.error(e.getMessage());
-          Thread.sleep(3000);
-          pollBitsoOrderbook();
+          
+          // Implement exponential backoff
+          if (retryCount < maxRetries) {
+            retryCount++;
+            LOGGER.info("Retrying in {} ms (attempt {} of {})", retryDelayMs, retryCount, maxRetries);
+            Thread.sleep(retryDelayMs);
+            retryDelayMs = Math.min(retryDelayMs * 2, 60000); // Double the delay up to 1 minute max
+          } else {
+            // After max retries, wait for the normal polling interval before trying again
+            LOGGER.warn("Max retries reached. Resuming normal polling schedule.");
+            retryCount = 0;
+            retryDelayMs = 3000;
+            Thread.sleep(orderbookPollingIntervalSec * 1000L);
+          }
+          // Continue the loop instead of recursive call
         }
       }
     };

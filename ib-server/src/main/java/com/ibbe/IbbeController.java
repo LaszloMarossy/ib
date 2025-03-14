@@ -6,20 +6,12 @@ import com.ibbe.entity.TradeConfig;
 import com.ibbe.executor.TraderWrapper;
 import com.ibbe.executor.TradingExecutor;
 import com.ibbe.executor.XchangeRatePoller;
-import com.ibbe.kafka.TradesConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.HashMap;
-import java.util.Map;
-
 
 /**
  * server-side REST controller for the Itsybitso trading application.
@@ -37,9 +29,6 @@ public class IbbeController {
 
   @Autowired
   BitsoDataAggregator bitsoDataAggregator;
-  
-  @Autowired
-  TradesConsumer tradesConsumer;
 
   /**
    * Handles GET requests to retrieve the current USD/MXN exchange rate.
@@ -70,7 +59,6 @@ public class IbbeController {
   public String addTradingConfiguration(@PathVariable("id") String id, @PathVariable("ups") String ups, @PathVariable("downs") String downs) throws Exception {
       TradeConfig tradeConfig = new TradeConfig(id, ups, downs);
       traderWrapper.addConfig(tradeConfig);
-//      TradingExecutor te = new TradingExecutor(tradeConfig);
       // this returns right away to the REST caller
       return "started polling the recent trades from Bitso with " + ups + " and " + downs + " " + id;
   }
@@ -97,77 +85,9 @@ public class IbbeController {
    */
   @GetMapping("/getexecutorinfo/{id}")
   public String getExecutorInfo(@PathVariable("id") String id) throws Exception {
-
       // this returns right away to the REST caller
-    FxTradesDisplayData dd = TradingExecutor.getConfigsDisplayData(id);
+      FxTradesDisplayData dd = TradingExecutor.getConfigsDisplayData(id);
       return "trader " + id + " account value: $" + dd.calculateAccountValue()
           + " with profit $" + dd.calculateProfit();
-  }
-
-  /**
-   * Starts the Kafka consumer to process messages from the beginning of the topic.
-   * The consumer will read all messages, parse trade data, and calculate orderbook statistics.
-   * 
-   * @return ResponseEntity with status and message
-   */
-  @GetMapping("/kafka/consumer/start")
-  public ResponseEntity<Map<String, Object>> startKafkaConsumer() {
-      logger.info("Received request to start Kafka consumer");
-      Map<String, Object> response = new HashMap<>();
-      
-      boolean started = tradesConsumer.startConsumer();
-      if (started) {
-          logger.info("Kafka consumer started successfully");
-          response.put("status", "success");
-          response.put("message", "Kafka consumer started successfully");
-      } else {
-          logger.info("Kafka consumer is already running");
-          response.put("status", "info");
-          response.put("message", "Kafka consumer is already running");
-      }
-      
-      return ResponseEntity.ok(response);
-  }
-  
-  /**
-   * Stops the Kafka consumer if it's running.
-   * 
-   * @return ResponseEntity with status and message
-   */
-  @GetMapping("/kafka/consumer/stop")
-  public ResponseEntity<Map<String, Object>> stopKafkaConsumer() {
-      logger.info("Received request to stop Kafka consumer");
-      Map<String, Object> response = new HashMap<>();
-      
-      boolean stopped = tradesConsumer.stopConsumer();
-      if (stopped) {
-          logger.info("Kafka consumer stopped successfully");
-          response.put("status", "success");
-          response.put("message", "Kafka consumer stopped successfully");
-      } else {
-          logger.info("Kafka consumer is not running");
-          response.put("status", "info");
-          response.put("message", "Kafka consumer is not running");
-      }
-      
-      return ResponseEntity.ok(response);
-  }
-  
-  /**
-   * Gets the current status of the Kafka consumer.
-   * 
-   * @return ResponseEntity with status and running state
-   */
-  @GetMapping("/kafka/consumer/status")
-  public ResponseEntity<Map<String, Object>> getKafkaConsumerStatus() {
-      logger.info("Received request to get Kafka consumer status");
-      Map<String, Object> response = new HashMap<>();
-      
-      boolean running = tradesConsumer.isRunning();
-      response.put("status", "success");
-      response.put("running", running);
-      response.put("message", running ? "Kafka consumer is running" : "Kafka consumer is not running");
-      
-      return ResponseEntity.ok(response);
   }
 }

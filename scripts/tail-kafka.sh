@@ -84,7 +84,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Build command
-CMD="java -jar /Users/laszlo/dev/code/ib/kafka-test/target/kafka-test-1.0-SNAPSHOT-jar-with-dependencies.jar"
+CMD="java -jar /Users/laszlo/dev/code/ibtrader/kafka-test/target/kafka-test-1.0-SNAPSHOT-jar-with-dependencies.jar"
 
 # Add options
 CMD="$CMD --topic $TOPIC --partition $PARTITION --bootstrap-servers $BOOTSTRAP_SERVERS"

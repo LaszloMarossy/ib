@@ -15,7 +15,6 @@ import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -29,7 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * It deserializes trade data from Kafka messages and provides it to registered handlers.
  * Enhanced with automatic reconnection capabilities for handling Kafka broker unavailability.
  */
-@Component
 public class TradesConsumer {
     private static final Logger logger = LoggerFactory.getLogger(TradesConsumer.class);
     private static final String TOPIC = "bitso-trades";

@@ -6,6 +6,7 @@ import com.ibbe.entity.OrderBookPayload;
 import com.ibbe.entity.PerformanceData;
 import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeConfig;
+import com.ibbe.entity.TrendData;
 import com.ibbe.kafka.TradesConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,12 +47,13 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
     // Sequence counter for performance data points
     private final AtomicInteger sequenceCounter = new AtomicInteger(0);
     
-    @Autowired
-    private TradesConsumer tradesConsumer;
+    // Map to store consumer instances
+    private final Map<String, TradesConsumer> sessionConsumers = new HashMap<>();
     
     /**
      * Handles incoming WS messages from PerformanceAnalysisClient on the FX side.
      * Expects a TradeConfig object as the message payload.
+     * Start the Kafka consumer in a separate thread
      *
      */
     @Override
@@ -96,12 +98,20 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
      */
     private void analyzeTradeConfigPerf(WebSocketSession session, TradeConfig config, AtomicBoolean isRunning) {
         try {
-            // Start the Kafka consumer
-            tradesConsumer.startConsumer();
+            // Create a new consumer instance for this session
+            TradesConsumer sessionConsumer = new TradesConsumer();
             
-            // Register a message handler to receive Trade objects
-            // according to the simplified MessageHandler interface in TradesConsumer
-            tradesConsumer.registerMessageHandler(trade -> {
+            // Start the consumer
+            sessionConsumer.startConsumer();
+
+            final TrendData trendData = new TrendData();
+            
+            // Register message handler
+            sessionConsumer.registerMessageHandler(trade -> {
+
+                 /**
+                 * The Historical trades/orderbook message processing logic comes here!!!
+                 */
                 if (!isRunning.get() || !session.isOpen()) {
                     return false; // Stop processing
                 }
@@ -112,6 +122,8 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
                     if (orderBook != null) {
                         // Calculate statistics
                         PerformanceData performanceData = calculatePerformanceData(trade, orderBook, config);
+                        // now calculate long and short term trends data
+                        calculateTrends(trendData, performanceData, orderBook);
                         
                         // Send data to client
                         String jsonData = objectMapper.writeValueAsString(performanceData);
@@ -125,13 +137,16 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
                 }
             });
             
-            // Wait until the session is closed or stopped
+            // Store the consumer in a map for cleanup
+            sessionConsumers.put(session.getId(), sessionConsumer);
+            
+            // Wait until session is closed
             while (isRunning.get() && session.isOpen()) {
                 Thread.sleep(1000);
             }
             
             // Stop the consumer when done
-            tradesConsumer.stopConsumer();
+            sessionConsumer.stopConsumer();
             
         } catch (Exception e) {
             LOGGER.error("Error processing Kafka messages", e);
@@ -142,9 +157,23 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
             }
         }
     }
-    
+
+    /**
+     * enhance the PeformanceData object with trends data, redying it for trading decisions and FX display
+     */
+    private void calculateTrends(TrendData trendData, PerformanceData performanceData, OrderBookPayload orderBook) {
+        performanceData.updatePosRelToAvg(orderBook);
+        performanceData.updateMovingAverages(trendData.getTradePricesQueue());
+        performanceData.updateSumOfTrade(trendData.getLastPrice());
+    }
+
     /**
      * Calculates performance data based on trade and orderbook data.
+     *
+     * Bt​: the average price of the top 20 bid prices.
+     * AtAt​: the average price of the top 20 ask prices.
+     * QBtQBt​​: the average amount of the top 20 bid amounts.
+     * QAtQAt​​: the average amount of the top 20 ask amounts.
      */
     private PerformanceData calculatePerformanceData(Trade trade, OrderBookPayload orderBook, TradeConfig config) {
         // Calculate average ask price and amount
@@ -184,7 +213,7 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
         // Check if trade amount is missing
         boolean amountMissing = (trade.getAmount() == null);
         
-        // Create performance data object
+        // Polulate performance data object
         PerformanceData data = new PerformanceData();
         data.setSequence(sequenceCounter.getAndIncrement());
         data.setTradeId(trade.getTid());
@@ -238,6 +267,12 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
         // Clean up
         sessionRunningFlags.remove(sessionId);
         sessionExecutors.remove(sessionId);
+        
+        // Stop and remove the consumer
+        TradesConsumer consumer = sessionConsumers.remove(sessionId);
+        if (consumer != null) {
+            consumer.stopConsumer();
+        }
     }
     
     /**

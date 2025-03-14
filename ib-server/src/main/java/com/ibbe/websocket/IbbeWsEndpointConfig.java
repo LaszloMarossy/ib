@@ -18,8 +18,8 @@ public class IbbeWsEndpointConfig implements WebSocketConfigurer {
   @Override
   public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
     System.out.println("&*&*&*&*&*&*&*&*&*& WEBSOCKET BACKEND STARTUP *&*&*&*&*&*&*&*&*&*&*&*&*&");
-    registry.addHandler(new BitsoOrderbookMonitorEndpoint(), "/websocket/orderbookmonitor")
-        .addInterceptors(new HttpSessionHandshakeInterceptor());
+//    registry.addHandler(new BitsoOrderbookMonitorEndpoint(), "/websocket/orderbookmonitor")
+//        .addInterceptors(new HttpSessionHandshakeInterceptor());
     registry.addHandler(new TradingMonitorEndpoint(), "/websocket/tradingconfigmonitor")
         .addInterceptors(new HttpSessionHandshakeInterceptor());
 
