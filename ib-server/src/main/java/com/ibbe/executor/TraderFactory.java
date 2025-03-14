@@ -9,17 +9,16 @@ import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 
 /**
- * Spring component that manages multiple TradingExecutor instances.
+ * Spring component that manages multiple LiveTrader instances.
  * Acts as a container/registry for trading executors that can run in parallel
  * with different configurations.
  *
  * Other Spring components can autowire this wrapper to access trading executors
  * by their configuration IDs.
  * 
- * This class ensures that only one TradingExecutor exists per configuration ID,
+ * This class ensures that only one LiveTrader exists per configuration ID,
  * preventing duplicate trading processes for the same configuration.
  */
 @Component
@@ -31,10 +30,10 @@ public class TraderWrapper {
   // Logger for this class (java.util.logging)
   private static final java.util.logging.Logger julLogger = java.util.logging.Logger.getLogger(TraderWrapper.class.getName());
 
-  // Maps configuration IDs to their corresponding TradingExecutor instances
+  // Maps configuration IDs to their corresponding LiveTrader instances
   // Key: configuration ID (String)
-  // Value: TradingExecutor instance that handles trading for that configuration
-  private HashMap<String, TradingExecutor> tradingExecutors;
+  // Value: LiveTrader instance that handles trading for that configuration
+  private HashMap<String, LiveTrader> liveTraders;
   
   // Scheduler for periodic logging
   private final ScheduledExecutorService scheduler;
@@ -44,17 +43,17 @@ public class TraderWrapper {
    * Called by Spring when creating this component.
    */
   public TraderWrapper() {
-    this.tradingExecutors = new HashMap<String, TradingExecutor>();
+    this.liveTraders = new HashMap<String, LiveTrader>();
     this.scheduler = Executors.newScheduledThreadPool(1);
     
     // Schedule periodic logging of trading executors - changed from 10 seconds to 60 seconds (1 minute)
-    this.scheduler.scheduleAtFixedRate(this::logTradingExecutors, 60, 60, TimeUnit.SECONDS);
+    this.scheduler.scheduleAtFixedRate(this::logLiveTraders, 60, 60, TimeUnit.SECONDS);
     
     slf4jLogger.info("TraderWrapper initialized with periodic logging every 60 seconds (SLF4J)");
   }
 
   /**
-   * Creates and registers a new TradingExecutor if one doesn't already exist
+   * Creates and registers a new LiveTrader if one doesn't already exist
    * for the given configuration.
    * 
    * @param tradeConfig The configuration to create a new executor for
@@ -62,9 +61,9 @@ public class TraderWrapper {
    *          will silently return without creating a duplicate
    */
   public void addConfig(TradeConfig tradeConfig) {
-    if (!tradingExecutors.containsKey(tradeConfig.getId())) {
-      TradingExecutor tradingExecutor = new TradingExecutor(tradeConfig);
-      tradingExecutors.put(tradeConfig.getId(), tradingExecutor);
+    if (!liveTraders.containsKey(tradeConfig.getId())) {
+      LiveTrader liveTrader = new LiveTrader(tradeConfig);
+      liveTraders.put(tradeConfig.getId(), liveTrader);
       
       slf4jLogger.info("Added new trading executor with config ID: {}, ups: {}, downs: {} ", 
           tradeConfig.getId(), tradeConfig.getUps(), tradeConfig.getDowns());
@@ -79,8 +78,8 @@ public class TraderWrapper {
    * @return true if a configuration was removed, false if no configuration with that ID existed
    */
   public boolean removeConfig(String configId) {
-    if (configId != null && tradingExecutors.containsKey(configId)) {
-      TradingExecutor removed = tradingExecutors.remove(configId);
+    if (configId != null && liveTraders.containsKey(configId)) {
+      LiveTrader removed = liveTraders.remove(configId);
       slf4jLogger.info("Removed trading executor with config ID: {} ", configId);
       return true;
     }
@@ -92,15 +91,15 @@ public class TraderWrapper {
    * This method is called every minute by the scheduler.
    * Only logs if there are active trading executors.
    */
-  private void logTradingExecutors() {
-    if (tradingExecutors.isEmpty()) {
+  private void logLiveTraders() {
+    if (liveTraders.isEmpty()) {
       // Don't log anything if there are no active trading executors
       return;
     }
     
-    slf4jLogger.info("# of executors: {} ", tradingExecutors.size());
+    slf4jLogger.info("# of executors: {} ", liveTraders.size());
     
-    tradingExecutors.forEach((id, executor) -> {
+    liveTraders.forEach((id, executor) -> {
       TradeConfig config = executor.getTradeConfig();
       
       // Log using SLF4J logger
