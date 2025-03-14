@@ -201,7 +201,7 @@ public class TradingWindow extends Application {
     }
 
     /**
-     * Calls localhost servlet REST endpoints to start backend processes. Creates a new ConfigurableTradingExecutor() in the
+     * Calls localhost servlet REST endpoints to start backend processes. Creates a new LiveTrader in the
      * backend that can then be monitored.
      * @param label UI label to update with status
      */

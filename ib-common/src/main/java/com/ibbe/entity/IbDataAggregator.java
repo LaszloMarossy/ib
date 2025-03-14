@@ -23,7 +23,7 @@ public class IbDataAggregator {
 
   /**
    * add an element to the last position of the deque of trades reveived via websocket and send to event monitors (in
-   * this case the TradingExecutor
+   * this case the LiveTrader
    *
    * @param tradeWs TradeWs to be added
    *

@@ -3,8 +3,8 @@ package com.ibbe;
 import com.ibbe.entity.BitsoDataAggregator;
 import com.ibbe.entity.FxTradesDisplayData;
 import com.ibbe.entity.TradeConfig;
-import com.ibbe.executor.TraderWrapper;
-import com.ibbe.executor.TradingExecutor;
+import com.ibbe.executor.TraderFactory;
+import com.ibbe.executor.LiveTrader;
 import com.ibbe.executor.XchangeRatePoller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +25,7 @@ public class IbbeController {
   XchangeRatePoller poller;
 
   @Autowired
-  TraderWrapper traderWrapper;
+  TraderFactory traderFactory;
 
   @Autowired
   BitsoDataAggregator bitsoDataAggregator;
@@ -58,7 +58,7 @@ public class IbbeController {
   @GetMapping("/addconfiguration/{id}/{ups}/{downs}")
   public String addTradingConfiguration(@PathVariable("id") String id, @PathVariable("ups") String ups, @PathVariable("downs") String downs) throws Exception {
       TradeConfig tradeConfig = new TradeConfig(id, ups, downs);
-      traderWrapper.addConfig(tradeConfig);
+      traderFactory.createTrader(tradeConfig);
       // this returns right away to the REST caller
       return "started polling the recent trades from Bitso with " + ups + " and " + downs + " " + id;
   }
@@ -70,7 +70,7 @@ public class IbbeController {
    */
   @GetMapping("/removeconfiguration/{id}")
   public String removeTradingConfiguration(@PathVariable("id") String id) {
-      boolean removed = traderWrapper.removeConfig(id);
+      boolean removed = traderFactory.removeTrader(id);
       if (removed) {
           return "Successfully removed trading configuration with ID: " + id;
       } else {
@@ -86,7 +86,7 @@ public class IbbeController {
   @GetMapping("/getexecutorinfo/{id}")
   public String getExecutorInfo(@PathVariable("id") String id) throws Exception {
       // this returns right away to the REST caller
-      FxTradesDisplayData dd = TradingExecutor.getConfigsDisplayData(id);
+      FxTradesDisplayData dd = traderFactory.getTraderDisplayData(id);
       return "trader " + id + " account value: $" + dd.calculateAccountValue()
           + " with profit $" + dd.calculateProfit();
   }

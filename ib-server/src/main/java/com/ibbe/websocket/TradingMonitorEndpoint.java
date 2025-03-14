@@ -3,35 +3,28 @@ package com.ibbe.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ibbe.entity.FxTradesDisplayData;
 import com.ibbe.entity.TradeConfig;
-import com.ibbe.executor.TradingExecutor;
+import com.ibbe.executor.LiveTrader;
+import com.ibbe.executor.TraderFactory;
 import com.ibbe.util.PropertiesUtil;
-import jakarta.websocket.OnClose;
-import jakarta.websocket.OnError;
-import jakarta.websocket.OnMessage;
-import jakarta.websocket.OnOpen;
 import jakarta.websocket.Session;
-import jakarta.websocket.server.ServerEndpoint;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * websocket endpoint to serve the javafx ui with refreshed display info
  */
-//@ServerEndpoint("/websocket/tradingconfigmonitor")
 @Component
 public class TradingMonitorEndpoint extends TextWebSocketHandler {
 
@@ -48,6 +41,9 @@ public class TradingMonitorEndpoint extends TextWebSocketHandler {
   private ExecutorService exe = Executors.newSingleThreadExecutor();
   private TradeConfig tradeConfig;
   private volatile boolean isRunning = true;
+
+  @Autowired
+  TraderFactory traderFactory;
 
   /**
    * keep sending trading display data for given TradingConfig
@@ -81,7 +77,7 @@ public class TradingMonitorEndpoint extends TextWebSocketHandler {
                 break;
               }
               
-              FxTradesDisplayData fxTradesDisplayData = TradingExecutor.getConfigsDisplayData(tradeConfig.getId());
+              FxTradesDisplayData fxTradesDisplayData = traderFactory.getTraderDisplayData(tradeConfig.getId());
               String displayString = objectMapper.writeValueAsString(fxTradesDisplayData);
               
               // Send data only if session is still open

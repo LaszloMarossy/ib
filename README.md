@@ -96,7 +96,7 @@ Contains the Spring Boot server application that provides WebSocket endpoints an
 cd /Users/laszlo/dev/code/ibtrader/ib-server 
 mvn clean package -U | cat
 # verify byte code for changes, if necessary:
-javap -c -p target/classes/com/ibbe/executor/TradingExecutor.class | grep -A 20 refreshDisplayWithNewTrade | cat
+javap -c -p target/classes/com/ibbe/executor/LiveTrader.class | grep -A 20 refreshDisplayWithNewTrade | cat
 java -jar target/ib-server-0.0.1-SNAPSHOT.jar
 ```
 

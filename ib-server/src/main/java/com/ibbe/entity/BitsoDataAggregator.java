@@ -157,7 +157,7 @@ public class BitsoDataAggregator extends IbDataAggregator {
 
   /**
    * add an element to the last position of the deque of trades reveived via websocket and send to event monitors (in
-   * this case the TradingExecutor
+   * this case the LiveTrader
    *
    * @param tradeWs TradeWs to be added
    *
@@ -165,7 +165,7 @@ public class BitsoDataAggregator extends IbDataAggregator {
    */
   public void addInternalizedTradeWs(TradeWs tradeWs) {
     super.addInternalizedTradeWs(tradeWs);
-    // ConfigurableTradingExecutors should know about the new tradeWs
+    // LiveTrader should know about the new tradeWs
     pcs.firePropertyChange("WS", previousBitsoTrade, tradeWs);
     previousBitsoTrade = tradeWs;
   }

@@ -35,14 +35,11 @@ import static com.ibbe.entity.Tick.TICK_UP;
  * 3. Updates display data for UI monitoring
  * 4. Manages pretend trades for simulation
  */
-public class TradingExecutor extends AsyncExecutor implements PropertyChangeListener {
+public class LiveTrader extends AsyncExecutor implements PropertyChangeListener {
 
-  private static final Logger logger = LoggerFactory.getLogger(TradingExecutor.class);
+  private static final Logger logger = LoggerFactory.getLogger(LiveTrader.class);
   private static final String MARKER_SIDE_SELL = "PRETEND sell";
   private static final String MARKER_SIDE_BUY = "PRETEND buy";
-
-  // this static map will keep track of the list of instances out there representing the different configurations by ID
-  private static ConcurrentHashMap<String, TradingExecutor> configurableTraders = new ConcurrentHashMap<>();
 
   private static int topX;
   private String downN;
@@ -52,6 +49,7 @@ public class TradingExecutor extends AsyncExecutor implements PropertyChangeList
   // list of trades Itsybitso WOULD make
   private ArrayList<Trade> pretendTrades = new ArrayList<>();
   private ExecutorService tradeExe;
+
   private FxTradesDisplayData fxTradesDisplayData;
   private BitsoDataAggregator bitsoDataAggregator;
   private XchangeRatePoller poller;
@@ -81,20 +79,12 @@ public class TradingExecutor extends AsyncExecutor implements PropertyChangeList
   }
 
   /**
-   * Retrieves display data for a specific trading configuration. 
-   * Used by monitoring endpoints (TradingMonitorEndpoint) to get current trading status.
-   */
-  public static FxTradesDisplayData getConfigsDisplayData(String id) {
-    return configurableTraders.get(id).fxTradesDisplayData;
-  }
-
-  /**
    * Creates a new trading executor with the specified configuration.
    * Initializes trading state and registers for trade events.
    * Called by ItsyBitsoWindow via IbbeController and TraderWrapper
    * @param tradeConfig the trading configuration to use (as passed by ItsyBitsoWindow)
    */
-  public TradingExecutor(TradeConfig tradeConfig) {
+  public LiveTrader(TradeConfig tradeConfig) {
     if (tradeConfig == null) {
       throw new IllegalArgumentException("TradeConfig cannot be null");
     }
@@ -118,7 +108,6 @@ public class TradingExecutor extends AsyncExecutor implements PropertyChangeList
       e.printStackTrace();
       logger.error("SHIIIIIIT");
     }
-    configurableTraders.put(id, this);
     logger.info("ADDED UPS:" + tradeConfig.getUps() + " DOWNS:" + tradeConfig.getDowns() + " ID:" + tradeConfig.getId());
   }
 
@@ -229,5 +218,11 @@ public class TradingExecutor extends AsyncExecutor implements PropertyChangeList
   public TradeConfig getTradeConfig() {
     return new TradeConfig(id, upM, downN);
   }
+
+  public FxTradesDisplayData getFxTradesDisplayData() {
+    return fxTradesDisplayData;
+  }
+
+
 
 }

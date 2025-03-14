@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 
-
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.math.BigDecimal;
@@ -35,14 +34,11 @@ import static com.ibbe.entity.Tick.TICK_UP;
  * 3. Updates display data for UI monitoring
  * 4. Manages pretend trades for simulation
  */
-public class TradingExecutor extends AsyncExecutor implements PropertyChangeListener {
+public class PerformanceTrader extends AsyncExecutor {
 
-  private static final Logger logger = LoggerFactory.getLogger(TradingExecutor.class);
+  private static final Logger logger = LoggerFactory.getLogger(PerformanceTrader.class);
   private static final String MARKER_SIDE_SELL = "PRETEND sell";
   private static final String MARKER_SIDE_BUY = "PRETEND buy";
-
-  // this static map will keep track of the list of instances out there representing the different configurations by ID
-  private static ConcurrentHashMap<String, TradingExecutor> configurableTraders = new ConcurrentHashMap<>();
 
   private static int topX;
   private String downN;
@@ -68,24 +64,24 @@ public class TradingExecutor extends AsyncExecutor implements PropertyChangeList
   public enum TradeType {
     BUY("PRETEND buy"),
     SELL("PRETEND sell");
-    
+
     private final String value;
-    
+
     TradeType(String value) {
       this.value = value;
     }
-    
+
     public String getValue() {
       return value;
     }
   }
 
   /**
-   * Retrieves display data for a specific trading configuration. 
+   * Retrieves display data for a specific trading configuration.
    * Used by monitoring endpoints (TradingMonitorEndpoint) to get current trading status.
    */
-  public static FxTradesDisplayData getConfigsDisplayData(String id) {
-    return configurableTraders.get(id).fxTradesDisplayData;
+  public FxTradesDisplayData getConfigsDisplayData(String id) {
+    return fxTradesDisplayData;
   }
 
   /**
@@ -94,7 +90,7 @@ public class TradingExecutor extends AsyncExecutor implements PropertyChangeList
    * Called by ItsyBitsoWindow via IbbeController and TraderWrapper
    * @param tradeConfig the trading configuration to use (as passed by ItsyBitsoWindow)
    */
-  public TradingExecutor(TradeConfig tradeConfig) {
+  public PerformanceTrader(TradeConfig tradeConfig) {
     if (tradeConfig == null) {
       throw new IllegalArgumentException("TradeConfig cannot be null");
     }
@@ -113,12 +109,10 @@ public class TradingExecutor extends AsyncExecutor implements PropertyChangeList
           new BigDecimal(PropertiesUtil.getProperty("starting.bal.coin")).setScale(4, RoundingMode.DOWN),
           new BigDecimal(0).setScale(2, RoundingMode.DOWN), new ArrayList<>());
       // register for new trades identified by the back-end
-      bitsoDataAggregator.addObserver(this);
     } catch (Exception e) {
       e.printStackTrace();
       logger.error("SHIIIIIIT");
     }
-    configurableTraders.put(id, this);
     logger.info("ADDED UPS:" + tradeConfig.getUps() + " DOWNS:" + tradeConfig.getDowns() + " ID:" + tradeConfig.getId());
   }
 
@@ -126,11 +120,9 @@ public class TradingExecutor extends AsyncExecutor implements PropertyChangeList
    * Handles trade events from BitsoDataAggregator.
    * Evaluates trading conditions and executes trades when criteria are met.
    */
-  @Override
-  public void propertyChange(PropertyChangeEvent evt) {
+  public void handleNewTrade(Trade trade) {
     try {
-      Trade trade = ((Trade) evt.getNewValue());
-      logger.info("trade event " + trade.getTid() + " from " + trade.getPrice());
+      logger.info("processing kafka trade " + trade.getTid() + " at price " + trade.getPrice());
       if (trade.getNthStatus().equals(TICK_DOWN.toString() + downN) && trade.getTick().equals(TICK_DOWN)) {
         trade(trade, MARKER_SIDE_SELL);
       }
