@@ -186,7 +186,7 @@ public class PerformanceTrader {
         .tid(mostRecentTrade.getTid() + TRADE_ID_OFFSET)
         .build();
 
-    logger.info("$$PRETEND$$ {} >> {}", id, pretendTrade.getTid());
+    // logger.info("$$PRETEND$$ {} >> {}", id, pretendTrade.getTid());
     // perform here as this is when balances are affected
     return pretendTrade;
   }
@@ -211,8 +211,8 @@ public class PerformanceTrader {
       return;
     }
     
-    logger.info("Before trade - Currency: {}, Coin: {}", 
-                currentCurrencyBalance, currentCoinBalance);
+    // logger.info("Before trade - Currency: {}, Coin: {}", 
+    //             currentCurrencyBalance, currentCoinBalance);
     
     BigDecimal priceOfTrade = pretendTrade.getAmount().multiply(pretendTrade.getPrice());
     switch (pretendTrade.getMakerSide()) {
@@ -222,9 +222,9 @@ public class PerformanceTrader {
         BigDecimal newCoinBalance = currentCoinBalance.add(
             pretendTrade.getAmount()).setScale(8, RoundingMode.DOWN);
             
-        logger.info("BUY Trade - Price: {}, Amount: {}, New Currency: {}, New Coin: {}", 
-                    pretendTrade.getPrice(), pretendTrade.getAmount(), 
-                    newCurrencyBalance, newCoinBalance);
+        // logger.info("BUY Trade - Price: {}, Amount: {}, New Currency: {}, New Coin: {}", 
+        //             pretendTrade.getPrice(), pretendTrade.getAmount(), 
+        //             newCurrencyBalance, newCoinBalance);
                     
         performanceData.getFxTradesDisplayData().setCurrencyBalance(newCurrencyBalance);
         performanceData.getFxTradesDisplayData().setCoinBalance(newCoinBalance);
@@ -235,9 +235,9 @@ public class PerformanceTrader {
         BigDecimal newCoinBalance = currentCoinBalance.subtract(
             pretendTrade.getAmount()).setScale(8, RoundingMode.DOWN);
             
-        logger.info("SELL Trade - Price: {}, Amount: {}, New Currency: {}, New Coin: {}", 
-                    pretendTrade.getPrice(), pretendTrade.getAmount(), 
-                    newCurrencyBalance, newCoinBalance);
+        // logger.info("SELL Trade - Price: {}, Amount: {}, New Currency: {}, New Coin: {}", 
+        //             pretendTrade.getPrice(), pretendTrade.getAmount(), 
+        //             newCurrencyBalance, newCoinBalance);
                     
         performanceData.getFxTradesDisplayData().setCurrencyBalance(newCurrencyBalance);
         performanceData.getFxTradesDisplayData().setCoinBalance(newCoinBalance);
@@ -246,10 +246,10 @@ public class PerformanceTrader {
     }
     
     // Log the updated balances and profit
-    logger.info("After trade - Currency: {}, Coin: {}, Profit: {}", 
-                performanceData.getFxTradesDisplayData().getCurrencyBalance(),
-                performanceData.getFxTradesDisplayData().getCoinBalance(),
-                performanceData.getFxTradesDisplayData().getProfit());
+    // logger.info("After trade - Currency: {}, Coin: {}, Profit: {}", 
+    //             performanceData.getFxTradesDisplayData().getCurrencyBalance(),
+    //             performanceData.getFxTradesDisplayData().getCoinBalance(),
+    //             performanceData.getFxTradesDisplayData().getProfit());
   }
 
 }

@@ -31,6 +31,8 @@ import javafx.scene.CacheHint;
 import javafx.scene.control.SplitPane;
 import javafx.scene.paint.Color;
 import javafx.geometry.Orientation;
+import javafx.animation.PauseTransition;
+import javafx.util.Duration;
 
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
@@ -70,6 +72,10 @@ public class PerformanceWindow extends Application {
     private XYChart.Series<Number, Number> avgAskPriceSeries = new XYChart.Series<>();
     private XYChart.Series<Number, Number> avgBidPriceSeries = new XYChart.Series<>();
     
+    // Add permanent pretend trade series
+    private XYChart.Series<Number, Number> pretendBuySeries = new XYChart.Series<>();
+    private XYChart.Series<Number, Number> pretendSellSeries = new XYChart.Series<>();
+    
     // Amount chart components
     private CategoryAxis amountXAxis = new CategoryAxis();
     private NumberAxis amountYAxis = new NumberAxis();
@@ -98,7 +104,13 @@ public class PerformanceWindow extends Application {
     // Flag to indicate if we're in live mode (auto-scrolling to latest data)
     private final AtomicBoolean liveMode = new AtomicBoolean(true);
     
+    // Flag to prevent recursive slider updates
+    private boolean isUpdatingSlider = false;
+    
     private Timer resizeTimer;
+    
+    // Add primaryStage as a class member
+    private Stage primaryStage;
     
     // Balance and profit tracking
     private Label balanceLabel = new Label("Starting Balance: $0.00 | 0.00000000 BTC");
@@ -120,18 +132,33 @@ public class PerformanceWindow extends Application {
     // Add a data summary label to show total records and visible window
     private Label dataSummaryLabel = new Label("Data: 0 records (showing 0-0)");
     
+    // Add a version label to track changes
+    private Label versionLabel = new Label("VERSION #14");
+    
+    // Add a timer for continuous pretend trade visibility checks
+    private Timer continuousCheckTimer;
+    
+    // Flag to prevent slider updates during data loading
+    private AtomicBoolean isDataLoading = new AtomicBoolean(false);
+    
     public static void main(String[] args) {
         launch(args);
     }
     
     @Override
     public void start(Stage primaryStage) {
-        // Print a message to confirm we're running the updated version
-        // System.out.println("*******************************************");
-        // System.out.println("* PerformanceWindow - Created: 2025-03-12 *");
-        // System.out.println("*******************************************");
+        // Store the primaryStage reference for use in setupChartControls
+        this.primaryStage = primaryStage;
         
         primaryStage.setTitle("Performance Analysis");
+        
+        // Style the version label
+        versionLabel.setFont(new Font("Arial", 24));
+        versionLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #AA0000;");
+        versionLabel.setPadding(new Insets(5, 10, 5, 10));
+        
+        // Set version label style
+        versionLabel.setStyle("-fx-text-fill: #888888; -fx-font-size: 8pt;");
         
         // Initialize chart with improved axis configuration
         xAxis.setLabel("Record #");
@@ -180,6 +207,10 @@ public class PerformanceWindow extends Application {
         avgAskPriceSeries.setName("Avg Ask Price");
         avgBidPriceSeries.setName("Avg Bid Price");
         
+        // Set up pretend trade series
+        pretendBuySeries.setName("Pretend Buy");
+        pretendSellSeries.setName("Pretend Sell");
+        
         // Create the line chart
         lineChart = new LineChart<>(xAxis, yAxis);
         lineChart.setTitle("Performance Analysis");
@@ -197,9 +228,13 @@ public class PerformanceWindow extends Application {
         // Add more bottom padding for diagonal X-axis labels
         lineChart.setPadding(new Insets(10, 10, 40, 10));
         
-        // Make the symbols larger and more visible
-        lineChart.setStyle(".chart-series-line { -fx-stroke-width: 2px; } " +
-                          ".chart-symbol { -fx-background-radius: 5px; -fx-padding: 5px; }");
+        // Make the symbols larger and more visible and add specific styling for pretend trade series
+        lineChart.setStyle(
+            ".chart-series-line { -fx-stroke-width: 2px; } " +
+            ".chart-symbol { -fx-background-radius: 5px; -fx-padding: 5px; } " +
+            ".default-color3.chart-series-line { -fx-stroke: transparent; -fx-stroke-width: 0; } " + // Pretend Buy series (index 3)
+            ".default-color4.chart-series-line { -fx-stroke: transparent; -fx-stroke-width: 0; }"    // Pretend Sell series (index 4)
+        );
         
         // Initialize and configure the amount chart
         amountXAxis.setLabel("Record #");
@@ -236,11 +271,34 @@ public class PerformanceWindow extends Application {
         amountChart.setPadding(new Insets(10, 10, 40, 10));
         
         // Add series to charts - do this before applying styles
-        lineChart.getData().addAll(tradePriceSeries, avgAskPriceSeries, avgBidPriceSeries);
+        lineChart.getData().addAll(tradePriceSeries, avgAskPriceSeries, avgBidPriceSeries, pretendBuySeries, pretendSellSeries);
         amountChart.getData().addAll(tradeAmountSeries, avgAskAmountSeries, avgBidAmountSeries);
         
         // Apply custom colors to the series
         applySeriesStyles();
+        
+        // Style the pretend trade series to have no line
+        if (pretendBuySeries.getNode() != null) {
+            pretendBuySeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+        }
+        if (pretendSellSeries.getNode() != null) {
+            pretendSellSeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+        }
+        
+        // Style the pretend trade series legend symbols
+        Platform.runLater(() -> {
+            Node buyLegendSymbol = pretendBuySeries.getNode().lookup(".chart-legend-item-symbol");
+            if (buyLegendSymbol != null) {
+                buyLegendSymbol.setStyle("-fx-background-color: #00AA00; -fx-background-radius: 0px; -fx-padding: 8px;");
+                buyLegendSymbol.setRotate(180); // Point upward
+            }
+            
+            Node sellLegendSymbol = pretendSellSeries.getNode().lookup(".chart-legend-item-symbol");
+            if (sellLegendSymbol != null) {
+                sellLegendSymbol.setStyle("-fx-background-color: #AA0000; -fx-background-radius: 0px; -fx-padding: 8px;");
+                sellLegendSymbol.setRotate(0); // Point downward
+            }
+        });
         
         // Set up input fields
         upsField.setText(PropertiesUtil.getProperty("trade.up_m"));
@@ -270,6 +328,13 @@ public class PerformanceWindow extends Application {
         HBox inputBox = new HBox(10, upsLabel, upsField, downsLabel, downsField, examineButton);
         inputBox.setAlignment(Pos.CENTER);
         inputBox.setPadding(new Insets(10));
+        
+        // Create a container for the version label and status label
+        HBox statusBox = new HBox(10);
+        statusBox.getChildren().addAll(versionLabel, statusLabel);
+        statusBox.setAlignment(Pos.CENTER_LEFT);
+        statusBox.setPadding(new Insets(5, 10, 5, 10));
+        HBox.setHgrow(statusLabel, Priority.ALWAYS);
         
         // Create time slider for navigating through historical data
         timeSlider = new Slider(0, 1, 1);
@@ -415,7 +480,7 @@ public class PerformanceWindow extends Application {
         tradeHistoryBox.setAlignment(Pos.CENTER);
         
         // Update the root VBox to include the new dataSummaryBox
-        VBox root = new VBox(10, inputBox, statusLabel, balanceBox, dataSummaryBox, tradeHistoryBox, chartsBox, sliderBox);
+        VBox root = new VBox(10, inputBox, statusBox, balanceBox, dataSummaryBox, tradeHistoryBox, chartsBox, sliderBox);
         root.setPadding(new Insets(10));
         VBox.setVgrow(chartsBox, Priority.ALWAYS);  // Allow charts box to grow vertically
         
@@ -425,61 +490,151 @@ public class PerformanceWindow extends Application {
         primaryStage.setScene(scene);
         primaryStage.show();
         
-        // Add width listener to handle window resizing efficiently
-        primaryStage.widthProperty().addListener((obs, oldVal, newVal) -> {
-            // Use a timer to debounce resize events
-            if (resizeTimer != null) {
-                resizeTimer.cancel();
-            }
-            resizeTimer = new Timer();
-            resizeTimer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                        // Update chart layout after resize
-                        lineChart.layout();
-                        amountChart.layout();
-                        
-                        // If in live mode, update the view
-                        if (liveMode.get()) {
-                            updateChartView(1.0);
-                        }
-                }
-            }, 200); // 200ms delay
-        });
-        
-        // Add height listener to handle window resizing efficiently
-        primaryStage.heightProperty().addListener((obs, oldVal, newVal) -> {
-            // Use a timer to debounce resize events
-            if (resizeTimer != null) {
-                resizeTimer.cancel();
-            }
-            resizeTimer = new Timer();
-            resizeTimer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    Platform.runLater(() -> {
-                        // Update chart layout after resize
-                        lineChart.layout();
-                        amountChart.layout();
-                        
-                        // If in live mode, update the view
-                        if (liveMode.get()) {
-                            updateChartView(1.0);
-                        }
-                    });
-                }
-            }, 200); // 200ms delay
-        });
-        
         // Initialize WebSocket client
         performanceClient = new PerformanceAnalysisClient(this);
         
         // Initialize chart with some default values to ensure it displays properly
         initializeChart();
         
-        // Print debug info about the chart
-        // System.out.println("Chart initialized with dimensions: " + lineChart.getWidth() + "x" + lineChart.getHeight());
-        // System.out.println("Y-axis range: " + yAxis.getLowerBound() + " to " + yAxis.getUpperBound());
+        // Setup chart controls
+        setupChartControls();
+        
+        // Start continuous checks for pretend trade visibility
+        startContinuousChecksForPretendTrades();
+        
+        // Schedule immediate checks for pretend trades visibility
+        scheduleMultipleChecksForPretendTrades();
+        
+        // Force a layout pass to ensure everything is properly displayed
+        Platform.runLater(() -> {
+            lineChart.layout();
+            amountChart.layout();
+            
+            // Ensure pretend trade series are in the chart
+            ensurePretendTradesVisible();
+        });
+        
+        // ... existing code ...
+        
+        // Initialize the chart
+        initializeChart();
+        
+        // Setup chart controls (slider and window resize handlers)
+        setupChartControls();
+        
+        // Ensure pretend trades are visible initially
+        Platform.runLater(() -> {
+            ensurePretendTradesVisible();
+            disablePretendTradeLines();
+            
+            // Schedule periodic checks to ensure pretend trades remain visible
+            schedulePretendTradeVisibilityCheck(500);  // Check after 500ms
+            schedulePretendTradeVisibilityCheck(1000); // Check after 1 second
+            schedulePretendTradeVisibilityCheck(2000); // Check after 2 seconds
+            schedulePretendTradeVisibilityCheck(5000); // Check after 5 seconds
+        });
+        
+        // ... existing code ...
+    }
+    
+    /**
+     * Sets up the chart controls, including slider and window resize listeners.
+     */
+    private void setupChartControls() {
+        // Add scroll listener to the slider
+        timeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && !isUpdatingSlider && !isDataLoading.get()) {
+                isUpdatingSlider = true;
+                try {
+                    // Only update if the value has actually changed
+                    if (oldVal == null || oldVal.doubleValue() != newVal.doubleValue()) {
+                        // Cancel any pending resize timer
+                        if (resizeTimer != null) {
+                            resizeTimer.cancel();
+                        }
+                        
+                        // Update the chart view with the new slider value
+                        updateChartView(newVal.doubleValue());
+                        
+                        // Ensure pretend trades are visible when scrolling starts
+                        ensurePretendTradesVisible();
+                    }
+                } finally {
+                    isUpdatingSlider = false;
+                }
+            }
+        });
+
+        // Add scroll stop listener to the slider
+        timeSlider.setOnMouseReleased(event -> {
+            // Only process if not loading data
+            if (!isDataLoading.get()) {
+                // Schedule multiple checks to ensure pretend trades remain visible after scrolling stops
+                scheduleMultipleChecksForPretendTrades();
+            }
+        });
+
+        // Add mouse pressed listener to ensure pretend trades are visible when scrolling starts
+        timeSlider.setOnMousePressed(event -> {
+            // Only process if not loading data
+            if (!isDataLoading.get()) {
+                ensurePretendTradesVisible();
+            }
+        });
+
+        // Add window resize listener
+        primaryStage.widthProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                // Schedule multiple checks to ensure pretend trades remain visible after resize
+                scheduleMultipleChecksForPretendTrades();
+            }
+        });
+
+        primaryStage.heightProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                // Schedule multiple checks to ensure pretend trades remain visible after resize
+                scheduleMultipleChecksForPretendTrades();
+            }
+        });
+
+        // Add a listener for when the user releases the mouse after dragging the slider
+        timeSlider.setOnMouseReleased(event -> {
+            if (!isUpdatingSlider) {
+                Platform.runLater(() -> {
+                    ensurePretendTradesVisible();
+                    disablePretendTradeLines();
+                    
+                    // Force a layout pass
+                    lineChart.layout();
+                    
+                    // Schedule a final check after a short delay
+                    PauseTransition pause = new PauseTransition(Duration.millis(100));
+                    pause.setOnFinished(e -> {
+                        ensurePretendTradesVisible();
+                        disablePretendTradeLines();
+                        lineChart.layout();
+                    });
+                    pause.play();
+                });
+            }
+        });
+
+        // Add window resize listeners
+        primaryStage.widthProperty().addListener((obs, oldVal, newVal) -> {
+            Platform.runLater(() -> {
+                ensurePretendTradesVisible();
+                disablePretendTradeLines();
+                lineChart.layout();
+            });
+        });
+        
+        primaryStage.heightProperty().addListener((obs, oldVal, newVal) -> {
+            Platform.runLater(() -> {
+                ensurePretendTradesVisible();
+                disablePretendTradeLines();
+                lineChart.layout();
+            });
+        });
     }
     
     /**
@@ -493,13 +648,13 @@ public class PerformanceWindow extends Application {
         final int totalRecords = performanceClient.getTotalRecordsReceived();
         
         if (totalPoints == 0) {
-                return;
-            }
+            return;
+        }
             
-            // Calculate the visible range based on slider value
+        // Calculate the visible range based on slider value
         final int visiblePoints = Math.min(VISIBLE_DATA_POINTS, totalPoints);
             
-            // Calculate the start index based on slider value
+        // Calculate the start index based on slider value
         final int startIndex = Math.max(0, Math.min(
             (int) Math.round((totalPoints - visiblePoints) * sliderValue),
             totalPoints - visiblePoints));
@@ -519,20 +674,37 @@ public class PerformanceWindow extends Application {
             return;
         }
         
-        // Update the chart with the window data
+        // First, update the trade history with all pretend trades in the window
+        updateTradeHistoryFromWindow(windowData);
+        
+        // Then update the chart with the window data
         updateChartWithWindowData(windowData, startIndex);
     }
     
     /**
-     * Updates the chart with a window of data from the client.
-     * Optimized for memory efficiency with large datasets.
-     * 
-     * @param windowData The window of data to display
-     * @param startIndex The start index of the window in the complete dataset
+     * Update the chart with data from the current window
      */
     private void updateChartWithWindowData(List<PerformanceData> windowData, int startIndex) {
+        // First, ensure pretend trades are visible
+        ensurePretendTradesVisible();
+        
+        // Store all pretend trades from the window data for later re-addition
+        List<PerformanceData> pretendTradePoints = new ArrayList<>();
+        for (PerformanceData point : windowData) {
+            if (point.getPretendTrade() != null && point.getPretendTrade().getPrice() != null) {
+                pretendTradePoints.add(point);
+            }
+        }
+        
+        // Set data loading flag to true
+        isDataLoading.set(true);
+        
         Platform.runLater(() -> {
             try {
+                // Store current pretend trade data before clearing
+                List<XYChart.Data<Number, Number>> currentPretendBuyData = new ArrayList<>(pretendBuySeries.getData());
+                List<XYChart.Data<Number, Number>> currentPretendSellData = new ArrayList<>(pretendSellSeries.getData());
+                
                 // Clear existing data in price chart
                 tradePriceSeries.getData().clear();
                 avgAskPriceSeries.getData().clear();
@@ -546,21 +718,35 @@ public class PerformanceWindow extends Application {
                 // Clear existing categories in amount chart
                 amountXAxis.getCategories().clear();
                 
-                // Remove any pretend trade series from the price chart
-                // Keep only the main series (trade price, ask price, bid price)
-                while (lineChart.getData().size() > 3) {
-                    lineChart.getData().remove(3);
+                // Clear existing pretend trade data
+                pretendBuySeries.getData().clear();
+                pretendSellSeries.getData().clear();
+                
+                // Ensure pretend trade series are in the chart and properly styled
+                if (!lineChart.getData().contains(pretendBuySeries)) {
+                    lineChart.getData().add(pretendBuySeries);
                 }
-            
-            // Find min and max Y values in the visible range to auto-scale Y-axis
-            double minY = Double.MAX_VALUE;
-            double maxY = Double.MIN_VALUE;
+                if (!lineChart.getData().contains(pretendSellSeries)) {
+                    lineChart.getData().add(pretendSellSeries);
+                }
+                
+                // Style the pretend trade series to have no line
+                if (pretendBuySeries.getNode() != null) {
+                    pretendBuySeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+                }
+                if (pretendSellSeries.getNode() != null) {
+                    pretendSellSeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+                }
+                
+                // Find min and max Y values in the visible range to auto-scale Y-axis
+                double minY = Double.MAX_VALUE;
+                double maxY = Double.MIN_VALUE;
                 double maxAmount = 0.0;
                 
                 // Batch data points for more efficient rendering
-                List<XYChart.Data<Number, Number>> tradePriceData = new ArrayList<>(windowData.size());
-                List<XYChart.Data<Number, Number>> avgAskPriceData = new ArrayList<>(windowData.size());
-                List<XYChart.Data<Number, Number>> avgBidPriceData = new ArrayList<>(windowData.size());
+                List<XYChart.Data<Number, Number>> tradePriceData = new ArrayList<>();
+                List<XYChart.Data<Number, Number>> avgAskPriceData = new ArrayList<>();
+                List<XYChart.Data<Number, Number>> avgBidPriceData = new ArrayList<>();
                 
                 // Lists for amount chart data
                 List<String> amountCategories = new ArrayList<>();
@@ -574,26 +760,26 @@ public class PerformanceWindow extends Application {
                     int seq = point.getSequence();
                     
                     // Add data to the price series
-                double tradePrice = point.getTradePrice();
+                    double tradePrice = point.getTradePrice();
                     tradePriceData.add(new XYChart.Data<>(seq, tradePrice));
                     if (tradePrice > 0) {
-                    minY = Math.min(minY, tradePrice);
-                    maxY = Math.max(maxY, tradePrice);
-                }
-                
-                double askPrice = point.getAvgAskPrice();
+                        minY = Math.min(minY, tradePrice);
+                        maxY = Math.max(maxY, tradePrice);
+                    }
+                    
+                    double askPrice = point.getAvgAskPrice();
                     avgAskPriceData.add(new XYChart.Data<>(seq, askPrice));
                     if (askPrice > 0) {
-                    minY = Math.min(minY, askPrice);
-                    maxY = Math.max(maxY, askPrice);
-                }
-                
-                double bidPrice = point.getAvgBidPrice();
+                        minY = Math.min(minY, askPrice);
+                        maxY = Math.max(maxY, askPrice);
+                    }
+                    
+                    double bidPrice = point.getAvgBidPrice();
                     avgBidPriceData.add(new XYChart.Data<>(seq, bidPrice));
                     if (bidPrice > 0) {
-                    minY = Math.min(minY, bidPrice);
-                    maxY = Math.max(maxY, bidPrice);
-                }
+                        minY = Math.min(minY, bidPrice);
+                        maxY = Math.max(maxY, bidPrice);
+                    }
                     
                     // Add pretend trade to the price chart if present
                     if (point.getPretendTrade() != null && point.getPretendTrade().getPrice() != null) {
@@ -604,88 +790,40 @@ public class PerformanceWindow extends Application {
                             maxY = Math.max(maxY, pretendTradePrice);
                         }
                         
-                        // Create a new series for this single trade point
-                        XYChart.Series<Number, Number> tradeSeries = new XYChart.Series<>();
-                        tradeSeries.setName(trade.getMakerSide()); // Set name to identify the trade type
+                        // Add the trade point to the appropriate pretend trade series
                         XYChart.Data<Number, Number> tradePoint = new XYChart.Data<>(seq, pretendTradePrice);
-                        tradeSeries.getData().add(tradePoint);
+                        String tradeType = trade.getMakerSide();
                         
-                        // Only add the series if it's not already in the chart
-                        boolean seriesExists = false;
-                        for (XYChart.Series<Number, Number> existingSeries : lineChart.getData()) {
-                            if (existingSeries.getData().size() == 1 && 
-                                existingSeries.getData().get(0).getXValue().equals(seq) &&
-                                existingSeries.getData().get(0).getYValue().equals(pretendTradePrice)) {
-                                seriesExists = true;
-                                break;
-                            }
-                        }
-                        
-                        if (!seriesExists) {
-                            lineChart.getData().add(tradeSeries);
+                        if (tradeType.toLowerCase().contains("buy")) {
+                            pretendBuySeries.getData().add(tradePoint);
                             
-                            // Style the trade point based on trade type
-                            String tradeType = trade.getMakerSide();
-                            String tradeColor = tradeType.toLowerCase().contains("buy") ? "#00AA00" : "#AA0000";
-                            
-                            // Add styling immediately instead of in a separate runLater
+                            // Style the trade point as a solid green triangle
                             if (tradePoint.getNode() != null) {
-                                tradePoint.getNode().setStyle("-fx-background-color: " + tradeColor + ", white; -fx-background-radius: 8px; -fx-padding: 8px;");
-                                
-                                // Add tooltip to the trade point
-                                StringBuilder tooltipText = new StringBuilder();
-                                tooltipText.append("Trade Type: ").append(tradeType.toUpperCase()).append("\n");
-                                tooltipText.append("Price: ").append(String.format("%.2f", trade.getPrice())).append("\n");
-                                tooltipText.append("Amount: ").append(String.format("%.4f", trade.getAmount())).append("\n");
-                                tooltipText.append("Time: ").append(dateFormatter.format(new Date(point.getTimestamp()))).append("\n");
-                                
-                                Tooltip tooltip = new Tooltip(tooltipText.toString());
-                                Tooltip.install(tradePoint.getNode(), tooltip);
-                            } else {
-                                // If node is not available yet, use a separate runLater with a delay
-                                final XYChart.Data<Number, Number> finalTradePoint = tradePoint;
-                                final XYChart.Series<Number, Number> finalTradeSeries = tradeSeries;
-                                final String finalTradeColor = tradeColor;
-                                final String finalTradeType = tradeType;
-                                final long finalTimestamp = point.getTimestamp();
-                                
-                                // Use a separate runLater for styling with a small delay to ensure node is created
-                                Platform.runLater(() -> {
-                                    try {
-                                        Thread.sleep(50); // Small delay to ensure node is created
-                                    } catch (InterruptedException e) {
-                                        // Ignore
-                                    }
-                                    
-                                    if (finalTradePoint.getNode() != null) {
-                                        finalTradePoint.getNode().setStyle("-fx-background-color: " + finalTradeColor + ", white; -fx-background-radius: 8px; -fx-padding: 8px;");
-                                        
-                                        // Add tooltip to the trade point
-                                        StringBuilder tooltipText = new StringBuilder();
-                                        tooltipText.append("Trade Type: ").append(finalTradeType.toUpperCase()).append("\n");
-                                        tooltipText.append("Price: ").append(String.format("%.2f", trade.getPrice())).append("\n");
-                                        tooltipText.append("Amount: ").append(String.format("%.4f", trade.getAmount())).append("\n");
-                                        tooltipText.append("Time: ").append(dateFormatter.format(new Date(finalTimestamp))).append("\n");
-                                        
-                                        Tooltip tooltip = new Tooltip(tooltipText.toString());
-                                        Tooltip.install(finalTradePoint.getNode(), tooltip);
-                                    }
-                                    
-                                    // Style the series to have no line
-                                    if (finalTradeSeries.getNode() != null) {
-                                        finalTradeSeries.getNode().setStyle("-fx-stroke: transparent;");
-                                    }
-                                });
+                                tradePoint.getNode().setStyle("-fx-background-color: #00AA00; -fx-background-radius: 0px; -fx-padding: 8px;");
+                                tradePoint.getNode().setRotate(180); // Point upward
                             }
+                        } else {
+                            pretendSellSeries.getData().add(tradePoint);
                             
-                            // Style the series to have no line
-                            if (tradeSeries.getNode() != null) {
-                                tradeSeries.getNode().setStyle("-fx-stroke: transparent;");
+                            // Style the trade point as a solid red triangle
+                            if (tradePoint.getNode() != null) {
+                                tradePoint.getNode().setStyle("-fx-background-color: #AA0000; -fx-background-radius: 0px; -fx-padding: 8px;");
+                                tradePoint.getNode().setRotate(0); // Point downward
                             }
                         }
+                        
+                        // Add tooltip to the trade point
+                        StringBuilder tooltipText = new StringBuilder();
+                        tooltipText.append("Trade Type: ").append(tradeType.toUpperCase()).append("\n");
+                        tooltipText.append("Price: ").append(String.format("%.2f", trade.getPrice())).append("\n");
+                        tooltipText.append("Amount: ").append(String.format("%.4f", trade.getAmount())).append("\n");
+                        tooltipText.append("Time: ").append(dateFormatter.format(new Date(point.getTimestamp()))).append("\n");
+                        
+                        Tooltip tooltip = new Tooltip(tooltipText.toString());
+                        Tooltip.install(tradePoint.getNode(), tooltip);
                     }
                     
-                    // Add data to the amount chart (using the same sequence numbers as the price chart)
+                    // Add data to the amount chart
                     String seqStr = String.valueOf(seq);
                     amountCategories.add(seqStr);
                     
@@ -720,47 +858,308 @@ public class PerformanceWindow extends Application {
                 tradeAmountSeries.getData().addAll(tradeAmountData);
                 avgAskAmountSeries.getData().addAll(avgAskAmountData);
                 avgBidAmountSeries.getData().addAll(avgBidAmountData);
-            
-            // Add some padding to the Y-axis range (5%)
-            double padding = (maxY - minY) * 0.05;
-            if (padding < 1) padding = 1000; // Default padding if range is too small
-            
-            // Update Y-axis range if we found valid min/max values
-            if (minY != Double.MAX_VALUE && maxY != Double.MIN_VALUE) {
-                yAxis.setLowerBound(minY - padding);
-                yAxis.setUpperBound(maxY + padding);
+                
+                // Apply styles to the amount chart series
+                for (XYChart.Data<String, Number> data : tradeAmountSeries.getData()) {
+                    if (data.getNode() != null) {
+                        data.getNode().setStyle("-fx-bar-fill: #ff0000;");
+                    }
+                }
+                
+                for (XYChart.Data<String, Number> data : avgAskAmountSeries.getData()) {
+                    if (data.getNode() != null) {
+                        data.getNode().setStyle("-fx-bar-fill: #00ff00;");
+                    }
+                }
+                
+                for (XYChart.Data<String, Number> data : avgBidAmountSeries.getData()) {
+                    if (data.getNode() != null) {
+                        data.getNode().setStyle("-fx-bar-fill: #0000ff;");
+                    }
+                }
+                
+                // Add some padding to the Y-axis range (5%)
+                double padding = (maxY - minY) * 0.05;
+                if (padding < 1) padding = 1000; // Default padding if range is too small
+                
+                // Update Y-axis range if we found valid min/max values
+                if (minY != Double.MAX_VALUE && maxY != Double.MIN_VALUE) {
+                    yAxis.setLowerBound(minY - padding);
+                    yAxis.setUpperBound(maxY + padding);
                 }
                 
                 // Set a reasonable range for the amount chart
                 if (maxAmount > 0) {
                     amountYAxis.setLowerBound(0);
                     amountYAxis.setUpperBound(maxAmount * 1.1); // Add 10% padding
-            } else {
+                } else {
                     amountYAxis.setLowerBound(0);
                     amountYAxis.setUpperBound(1);
                 }
                 
-                // Update X-axis range
+                // Update X-axis range to match the window data
                 int minSeq = windowData.get(0).getSequence();
                 int maxSeq = windowData.get(windowData.size() - 1).getSequence();
                 xAxis.setLowerBound(minSeq);
                 xAxis.setUpperBound(maxSeq);
                 xAxis.setTickUnit(Math.max(1, (maxSeq - minSeq) / 10)); // Adjust tick unit for readability
                 
-                // Apply styles to the data points - do this in a separate runLater to avoid blocking the UI
-                Platform.runLater(this::applySeriesStyles);
-            
-            // Force a layout pass to ensure both charts are updated
+                // Apply styles to the data points
+                applySeriesStyles();
+                
+                // Force a layout pass to ensure both charts are updated
                 lineChart.layout();
                 amountChart.layout();
                 
                 // Update the trade history with all pretend trades in the window
                 updateTradeHistoryFromWindow(windowData);
+                
+                // Double-check that all pretend trades are still in the chart
+                // This is a critical step to ensure they remain visible
+                ensurePretendTradesVisible();
+                disablePretendTradeLines();
+                
+                // Schedule multiple checks to ensure pretend trades remain visible
+                scheduleMultipleChecksForPretendTrades();
+                
+                // Add a final check after a longer delay to catch any late rendering issues
+                Timer finalCheckTimer = new Timer();
+                finalCheckTimer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        Platform.runLater(() -> {
+                            try {
+                                // Re-add all pretend trades from the window data
+                                for (PerformanceData point : pretendTradePoints) {
+                                    if (point.getPretendTrade() != null && point.getPretendTrade().getPrice() != null) {
+                                        com.ibbe.entity.Trade trade = point.getPretendTrade();
+                                        int seq = point.getSequence();
+                                        double pretendTradePrice = trade.getPrice().doubleValue();
+                                        
+                                        // Add the trade point to the appropriate pretend trade series
+                                        XYChart.Data<Number, Number> tradePoint = new XYChart.Data<>(seq, pretendTradePrice);
+                                        String tradeType = trade.getMakerSide();
+                                        
+                                        // Check if this point already exists in the series
+                                        boolean exists = false;
+                                        if (tradeType.toLowerCase().contains("buy")) {
+                                            for (XYChart.Data<Number, Number> existingPoint : pretendBuySeries.getData()) {
+                                                if (existingPoint.getXValue().equals(seq)) {
+                                                    exists = true;
+                                                    break;
+                                                }
+                                            }
+                                            
+                                            if (!exists) {
+                                                pretendBuySeries.getData().add(tradePoint);
+                                                
+                                                // Style the trade point as a solid green triangle
+                                                if (tradePoint.getNode() != null) {
+                                                    tradePoint.getNode().setStyle("-fx-background-color: #00AA00; -fx-background-radius: 0px; -fx-padding: 8px;");
+                                                    tradePoint.getNode().setRotate(180); // Point upward
+                                                }
+                                            }
+                                        } else {
+                                            for (XYChart.Data<Number, Number> existingPoint : pretendSellSeries.getData()) {
+                                                if (existingPoint.getXValue().equals(seq)) {
+                                                    exists = true;
+                                                    break;
+                                                }
+                                            }
+                                            
+                                            if (!exists) {
+                                                pretendSellSeries.getData().add(tradePoint);
+                                                
+                                                // Style the trade point as a solid red triangle
+                                                if (tradePoint.getNode() != null) {
+                                                    tradePoint.getNode().setStyle("-fx-background-color: #AA0000; -fx-background-radius: 0px; -fx-padding: 8px;");
+                                                    tradePoint.getNode().setRotate(0); // Point downward
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Ensure pretend trades are visible one final time
+                                ensurePretendTradesVisible();
+                                disablePretendTradeLines();
+                                
+                                // Force one final layout pass
+                                lineChart.layout();
+                                amountChart.layout();
+                            } catch (Exception e) {
+                                System.err.println("Error in final pretend trade check: " + e.getMessage());
+                                e.printStackTrace();
+                            } finally {
+                                finalCheckTimer.cancel();
+                            }
+                        });
+                    }
+                }, 1000); // 1 second delay for final check
             } catch (Exception e) {
                 System.err.println("Error updating chart with window data: " + e.getMessage());
                 e.printStackTrace();
+            } finally {
+                // Set data loading flag to false
+                isDataLoading.set(false);
             }
         });
+    }
+    
+    /**
+     * Adds a data point to the chart
+     */
+    private void addDataPoint(long timestamp, double price, double amount) {
+        // ... existing code ...
+        
+        // Ensure pretend trades remain visible after adding new data
+        if (!isDataLoading.get()) {
+            Platform.runLater(() -> {
+                ensurePretendTradesVisible();
+                disablePretendTradeLines();
+            });
+        }
+    }
+    
+    /**
+     * Schedule multiple checks to ensure pretend trades remain visible
+     * This helps with both initial loading and after scrolling
+     */
+    private void scheduleMultipleChecksForPretendTrades() {
+        // Immediate check
+        Platform.runLater(this::ensurePretendTradesVisible);
+        
+        // Schedule multiple delayed checks at different intervals
+        // This helps catch different phases of rendering and loading
+        scheduleDelayedPretendTradesCheck(100);  // 100ms
+        scheduleDelayedPretendTradesCheck(300);  // 300ms
+        scheduleDelayedPretendTradesCheck(500);  // 500ms
+        scheduleDelayedPretendTradesCheck(1000); // 1 second
+        scheduleDelayedPretendTradesCheck(2000); // 2 seconds
+        scheduleDelayedPretendTradesCheck(3000); // 3 seconds
+        scheduleDelayedPretendTradesCheck(5000); // 5 seconds
+    }
+    
+    /**
+     * Schedule a delayed check for pretend trades visibility
+     */
+    private void scheduleDelayedPretendTradesCheck(int delayMs) {
+        Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                Platform.runLater(() -> {
+                    ensurePretendTradesVisible();
+                    timer.cancel();
+                });
+            }
+        }, delayMs);
+    }
+    
+    /**
+     * Completely disable the connecting lines for the pretend trade series
+     * This is a more aggressive approach to ensure no lines are shown
+     */
+    private void disablePretendTradeLines() {
+        try {
+            // Apply CSS to completely disable the lines
+            for (XYChart.Series<Number, Number> series : lineChart.getData()) {
+                if (series == pretendBuySeries || series == pretendSellSeries) {
+                    // Get all line segments in the series
+                    for (Node node : series.getNode().lookupAll(".chart-series-line")) {
+                        // Make the line completely invisible
+                        node.setVisible(false);
+                        node.setManaged(false);
+                        node.setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+                    }
+                    
+                    // Apply style to the series node itself
+                    series.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error disabling pretend trade lines: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Ensure pretend trades are visible in the chart
+     */
+    private void ensurePretendTradesVisible() {
+        try {
+            // Ensure pretend trade series are in the chart
+            if (!lineChart.getData().contains(pretendBuySeries)) {
+                lineChart.getData().add(pretendBuySeries);
+            }
+            if (!lineChart.getData().contains(pretendSellSeries)) {
+                lineChart.getData().add(pretendSellSeries);
+            }
+            
+            // Reapply styles to ensure they persist
+            if (pretendBuySeries.getNode() != null) {
+                pretendBuySeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+            }
+            if (pretendSellSeries.getNode() != null) {
+                pretendSellSeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+            }
+            
+            // Apply styles to individual data points in the pretend trade series
+            for (XYChart.Data<Number, Number> data : pretendBuySeries.getData()) {
+                if (data.getNode() != null) {
+                    data.getNode().setStyle("-fx-background-color: #00AA00; -fx-background-radius: 0px; -fx-padding: 8px;");
+                    data.getNode().setRotate(180); // Point upward
+                } else {
+                    // If node is null, force creation by accessing it
+                    Platform.runLater(() -> {
+                        if (data.getNode() != null) {
+                            data.getNode().setStyle("-fx-background-color: #00AA00; -fx-background-radius: 0px; -fx-padding: 8px;");
+                            data.getNode().setRotate(180); // Point upward
+                        }
+                    });
+                }
+            }
+            
+            for (XYChart.Data<Number, Number> data : pretendSellSeries.getData()) {
+                if (data.getNode() != null) {
+                    data.getNode().setStyle("-fx-background-color: #AA0000; -fx-background-radius: 0px; -fx-padding: 8px;");
+                    data.getNode().setRotate(0); // Point downward
+                } else {
+                    // If node is null, force creation by accessing it
+                    Platform.runLater(() -> {
+                        if (data.getNode() != null) {
+                            data.getNode().setStyle("-fx-background-color: #AA0000; -fx-background-radius: 0px; -fx-padding: 8px;");
+                            data.getNode().setRotate(0); // Point downward
+                        }
+                    });
+                }
+            }
+            
+            // Ensure the pretend trade series are at the top of the chart (last in the list)
+            // This makes them more visible
+            if (lineChart.getData().contains(pretendBuySeries)) {
+                lineChart.getData().remove(pretendBuySeries);
+                lineChart.getData().add(pretendBuySeries);
+            }
+            if (lineChart.getData().contains(pretendSellSeries)) {
+                lineChart.getData().remove(pretendSellSeries);
+                lineChart.getData().add(pretendSellSeries);
+            }
+            
+            // Completely disable the connecting lines
+            disablePretendTradeLines();
+            
+            // Force a layout pass to ensure everything is properly displayed
+            lineChart.layout();
+            amountChart.layout();
+            
+            // Force a repaint of the chart
+            lineChart.setAnimated(true);
+            lineChart.setAnimated(false);
+        } catch (Exception e) {
+            System.err.println("Error ensuring pretend trades visibility: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
     /**
@@ -769,19 +1168,32 @@ public class PerformanceWindow extends Application {
      * @param windowData The window of data to display
      */
     private void updateTradeHistoryFromWindow(List<PerformanceData> windowData) {
+        // Process each data point in the window to find pretend trades
+        List<PerformanceData> pretendTradePoints = new ArrayList<>();
+        for (PerformanceData point : windowData) {
+            if (point.getPretendTrade() != null && point.getPretendTrade().getPrice() != null) {
+                pretendTradePoints.add(point);
+            }
+        }
+        
+        // If no pretend trades found, don't update the trade history
+        if (pretendTradePoints.isEmpty()) {
+            return;
+        }
+        
         // Clear existing trade history
         Platform.runLater(() -> {
-            // Keep only the header
-            while (tradeHistoryContainer.getChildren().size() > 1) {
-                tradeHistoryContainer.getChildren().remove(1);
-            }
-            
-            // Add placeholder entries if no trades
-            boolean hasAnyTrades = false;
-            
-            // Process each data point in the window to find pretend trades
-            for (PerformanceData point : windowData) {
-                if (point.getPretendTrade() != null && point.getPretendTrade().getPrice() != null) {
+            try {
+                // Keep only the header
+                while (tradeHistoryContainer.getChildren().size() > 1) {
+                    tradeHistoryContainer.getChildren().remove(1);
+                }
+                
+                // Add placeholder entries if no trades
+                boolean hasAnyTrades = false;
+                
+                // Process each pretend trade point
+                for (PerformanceData point : pretendTradePoints) {
                     hasAnyTrades = true;
                     com.ibbe.entity.Trade trade = point.getPretendTrade();
                     
@@ -807,36 +1219,39 @@ public class PerformanceWindow extends Application {
                     // Add the label to the trade history container after the header
                     tradeHistoryContainer.getChildren().add(1, tradeLabel); // Add after header for newest first
                 }
-            }
-            
-            // Add placeholder entries if no trades
-            if (!hasAnyTrades) {
-                Label placeholder1 = new Label("No trades yet");
-                placeholder1.setFont(new Font("Arial", 12));
-                placeholder1.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
                 
-                Label placeholder2 = new Label("Trades will appear here when executed");
-                placeholder2.setFont(new Font("Arial", 12));
-                placeholder2.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
+                // Add placeholder entries if no trades
+                if (!hasAnyTrades) {
+                    Label placeholder1 = new Label("No trades yet");
+                    placeholder1.setFont(new Font("Arial", 12));
+                    placeholder1.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
+                    
+                    Label placeholder2 = new Label("Trades will appear here when executed");
+                    placeholder2.setFont(new Font("Arial", 12));
+                    placeholder2.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
+                    
+                    tradeHistoryContainer.getChildren().addAll(placeholder1, placeholder2);
+                }
                 
-                tradeHistoryContainer.getChildren().addAll(placeholder1, placeholder2);
+                // Limit the number of trade history entries to prevent memory leaks
+                while (tradeHistoryContainer.getChildren().size() > MAX_TRADE_HISTORY + 1) { // +1 for the header
+                    tradeHistoryContainer.getChildren().remove(tradeHistoryContainer.getChildren().size() - 1);
+                }
+                
+                // Ensure the trade history is visible
+                if (!tradeHistoryVisible) {
+                    tradeHistoryVisible = true;
+                    tradeHistoryScrollPane.setVisible(true);
+                    tradeHistoryScrollPane.setManaged(true);
+                    toggleTradeHistoryButton.setText("Hide Trade History");
+                }
+                
+                // Scroll to the top to show the newest trade
+                tradeHistoryScrollPane.setVvalue(0);
+            } catch (Exception e) {
+                System.err.println("Error updating trade history: " + e.getMessage());
+                e.printStackTrace();
             }
-            
-            // Limit the number of trade history entries to prevent memory leaks
-            while (tradeHistoryContainer.getChildren().size() > MAX_TRADE_HISTORY + 1) { // +1 for the header
-                tradeHistoryContainer.getChildren().remove(tradeHistoryContainer.getChildren().size() - 1);
-            }
-            
-            // Ensure the trade history is visible
-            if (!tradeHistoryVisible) {
-                tradeHistoryVisible = true;
-                tradeHistoryScrollPane.setVisible(true);
-                tradeHistoryScrollPane.setManaged(true);
-                toggleTradeHistoryButton.setText("Hide Trade History");
-            }
-            
-            // Scroll to the top to show the newest trade
-            tradeHistoryScrollPane.setVvalue(0);
         });
     }
     
@@ -880,9 +1295,30 @@ public class PerformanceWindow extends Application {
                 amountXAxis.getCategories().add(String.valueOf(i));
             }
             
+            // Ensure pretend trade series are in the chart
+            if (!lineChart.getData().contains(pretendBuySeries)) {
+                lineChart.getData().add(pretendBuySeries);
+            }
+            if (!lineChart.getData().contains(pretendSellSeries)) {
+                lineChart.getData().add(pretendSellSeries);
+            }
+            
+            // Style the pretend trade series to have no line
+            if (pretendBuySeries.getNode() != null) {
+                pretendBuySeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+            }
+            if (pretendSellSeries.getNode() != null) {
+                pretendSellSeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+            }
+            
+            // Force a layout pass
+            lineChart.layout();
+            amountChart.layout();
+            
             chartInitialized = true;
             
-            // System.out.println("Charts initialized with empty series and Y-axis range: " + yAxis.getLowerBound() + " to " + yAxis.getUpperBound());
+            // Schedule multiple checks to ensure pretend trades remain visible
+            scheduleMultipleChecksForPretendTrades();
         });
     }
     
@@ -905,10 +1341,24 @@ public class PerformanceWindow extends Application {
             avgAskAmountSeries.getData().clear();
             avgBidAmountSeries.getData().clear();
             
-            // Remove any pretend trade series from the price chart
-            // Keep only the main series (trade price, ask price, bid price)
-            while (lineChart.getData().size() > 3) {
-                lineChart.getData().remove(3);
+            // Clear pretend trade data but keep the series
+            pretendBuySeries.getData().clear();
+            pretendSellSeries.getData().clear();
+            
+            // Ensure pretend trade series are in the chart
+            if (!lineChart.getData().contains(pretendBuySeries)) {
+                lineChart.getData().add(pretendBuySeries);
+            }
+            if (!lineChart.getData().contains(pretendSellSeries)) {
+                lineChart.getData().add(pretendSellSeries);
+            }
+            
+            // Style the pretend trade series to have no line
+            if (pretendBuySeries.getNode() != null) {
+                pretendBuySeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+            }
+            if (pretendSellSeries.getNode() != null) {
+                pretendSellSeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
             }
             
             // Reset slider
@@ -962,6 +1412,14 @@ public class PerformanceWindow extends Application {
         // Get configuration values
         String ups = upsField.getText();
         String downs = downsField.getText();
+        
+        // Restart continuous checks for pretend trade visibility
+        // This is critical for ensuring trades remain visible during initial data loading
+        stopContinuousChecksForPretendTrades();
+        startContinuousChecksForPretendTrades();
+        
+        // Schedule multiple checks for pretend trades visibility
+        scheduleMultipleChecksForPretendTrades();
         
         // Connect to server and start analysis
         performanceClient.startPerformanceAnalysis(ups, downs);
@@ -1126,165 +1584,249 @@ public class PerformanceWindow extends Application {
             BigDecimal coinBalance,
             BigDecimal profit) {
         
-        // Skip data points with null trade price or amount
-        if (tradePrice == null || tradeAmount == null) {
-            System.err.println("Skipping data point with null trade price or amount");
-            return;
-        }
+        // Set data loading flag to true
+        isDataLoading.set(true);
         
-        // Create a new data point
-        int seq = sequenceNumber.getAndIncrement();
-        PerformanceData dataPoint = new PerformanceData();
-        dataPoint.setSequence(seq);
-        dataPoint.setTradePrice(tradePrice);
-        dataPoint.setTradeAmount(tradeAmount);
-        dataPoint.setAvgAskPrice(avgAskPrice);
-        dataPoint.setAvgAskAmount(avgAskAmount);
-        dataPoint.setAvgBidPrice(avgBidPrice);
-        dataPoint.setAvgBidAmount(avgBidAmount);
-        dataPoint.setTimestamp(timestamp);
-        
-        // Add pretend trade if present
-        if (pretendTrade != null) {
-            dataPoint.setPretendTrade(pretendTrade);
-            // Update balance display based on the trade
-            updateBalanceDisplayAfterTrade(pretendTrade);
-        }
-        
-        // Update balance and profit display if provided
-        // Only update starting balance on the first data point
-        if (currencyBalance != null && coinBalance != null && profit != null) {
-            if (dataPoints.isEmpty()) {
-                // First data point - set starting balances
-                updateBalanceAndProfit(currencyBalance, coinBalance, profit);
-            } else if (pretendTrade != null) {
-                // Only update current balance and profit when trades occur
-                // Already handled by updateBalanceDisplayAfterTrade above
-            } else {
-                // Regular update without changing starting balance
-                currentCurrencyBalance = currencyBalance;
-                currentCoinBalance = coinBalance;
-                currentProfit = profit;
+        try {
+            // Skip data points with null trade price or amount
+            if (tradePrice == null || tradeAmount == null) {
+                System.err.println("Skipping data point with null trade price or amount");
+                return;
+            }
+            
+            // Create a new data point
+            int seq = sequenceNumber.getAndIncrement();
+            PerformanceData dataPoint = new PerformanceData();
+            dataPoint.setSequence(seq);
+            dataPoint.setTradePrice(tradePrice);
+            dataPoint.setTradeAmount(tradeAmount);
+            dataPoint.setAvgAskPrice(avgAskPrice);
+            dataPoint.setAvgAskAmount(avgAskAmount);
+            dataPoint.setAvgBidPrice(avgBidPrice);
+            dataPoint.setAvgBidAmount(avgBidAmount);
+            dataPoint.setTimestamp(timestamp);
+            
+            // Add pretend trade if present
+            if (pretendTrade != null) {
+                dataPoint.setPretendTrade(pretendTrade);
+                // Update balance display based on the trade
+                updateBalanceDisplayAfterTrade(pretendTrade);
+            }
+            
+            // Update balance and profit display if provided
+            if (currencyBalance != null && coinBalance != null && profit != null) {
+                if (dataPoints.isEmpty()) {
+                    // First data point - set starting balances
+                    updateBalanceAndProfit(currencyBalance, coinBalance, profit);
+                } else if (pretendTrade != null) {
+                    // Only update current balance and profit when trades occur
+                    // Already handled by updateBalanceDisplayAfterTrade above
+                } else {
+                    // Regular update without changing starting balance
+                    currentCurrencyBalance = currencyBalance;
+                    currentCoinBalance = coinBalance;
+                    currentProfit = profit;
+                    
+                    Platform.runLater(() -> {
+                        // Update the current balance label
+                        currentBalanceLabel.setText(String.format("Current Balance: $%.2f | %.8f BTC", 
+                            currentCurrencyBalance, currentCoinBalance));
+                        
+                        // Set color based on profit
+                        String profitColor = currentProfit.compareTo(BigDecimal.ZERO) >= 0 ? "#00AA00" : "#AA0000";
+                        profitLabel.setText(String.format("Profit: $%.2f", currentProfit));
+                        profitLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + profitColor + ";");
+                    });
+                }
+            }
+    
+            // Add to the data points list
+            boolean updateCharts = false;
+            boolean firstBatch = false;
+            boolean needTrimSeries = false;
+            boolean hasPretendTrade = pretendTrade != null;
+            synchronized (dataPoints) {
+                dataPoints.add(dataPoint);
                 
-                Platform.runLater(() -> {
-                    // Update the current balance label
-                    currentBalanceLabel.setText(String.format("Current Balance: $%.2f | %.8f BTC", 
-                        currentCurrencyBalance, currentCoinBalance));
-                    
-                    // Set color based on profit
-                    String profitColor = currentProfit.compareTo(BigDecimal.ZERO) >= 0 ? "#00AA00" : "#AA0000";
-                    profitLabel.setText(String.format("Profit: $%.2f", currentProfit));
-                    profitLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + profitColor + ";");
-                });
-            }
-        }
-
-        // Add to the data points list
-        boolean updateCharts = false;
-        boolean firstBatch = false;
-        boolean needTrimSeries = false;
-        synchronized (dataPoints) {
-            dataPoints.add(dataPoint);
-            
-            // Limit the number of data points to avoid memory issues
-            needTrimSeries = dataPoints.size() > MAX_DATA_POINTS;
-            while (dataPoints.size() > MAX_DATA_POINTS) {
-                dataPoints.removeFirst();
+                // Limit the number of data points to avoid memory issues
+                needTrimSeries = dataPoints.size() > MAX_DATA_POINTS;
+                while (dataPoints.size() > MAX_DATA_POINTS) {
+                    dataPoints.removeFirst();
+                }
+                
+                // Update the charts if we're in live mode or this is the first data point
+                updateCharts = liveMode.get() || dataPoints.size() == 1;
+                
+                // Check if we've received a batch of data points (e.g., 50 points)
+                firstBatch = dataPoints.size() == 50;
             }
             
-            // Update the charts if we're in live mode or this is the first data point
-            updateCharts = liveMode.get() || dataPoints.size() == 1;
+            // Always add the data point to the series (even if not updating the view)
+            final boolean shouldUpdateCharts = updateCharts;
+            final boolean isFirstBatch = firstBatch;
+            final boolean shouldTrimSeries = needTrimSeries;
+            final boolean hasPretendTradePoint = hasPretendTrade;
             
-            // Check if we've received a batch of data points (e.g., 50 points)
-            // This helps us detect when we've loaded a significant amount of historical data
-            firstBatch = dataPoints.size() == 50;
-        }
-        
-        // Always add the data point to the series (even if not updating the view)
-        // This ensures all data is in the series when we need to display it
-        final boolean shouldUpdateCharts = updateCharts;
-        final boolean isFirstBatch = firstBatch;
-        final boolean shouldTrimSeries = needTrimSeries;
-        
-        // Batch UI updates to reduce memory pressure
-        Platform.runLater(() -> {
-            if (!chartInitialized) {
-                initializeChart();
-            }
-            
-            try {
-                // Trim series data if we've exceeded the maximum number of data points
-                if (shouldTrimSeries) {
-                    // Keep only the most recent MAX_DATA_POINTS in each series
-                    while (tradePriceSeries.getData().size() > MAX_DATA_POINTS) {
-                        tradePriceSeries.getData().remove(0);
-                    }
-                    while (avgAskPriceSeries.getData().size() > MAX_DATA_POINTS) {
-                        avgAskPriceSeries.getData().remove(0);
-                    }
-                    while (avgBidPriceSeries.getData().size() > MAX_DATA_POINTS) {
-                        avgBidPriceSeries.getData().remove(0);
+            // Batch UI updates to reduce memory pressure
+            Platform.runLater(() -> {
+                try {
+                    if (!chartInitialized) {
+                        initializeChart();
                     }
                     
-                    // Also trim any additional series (pretend trades)
-                    while (lineChart.getData().size() > 3) {
-                        if (lineChart.getData().get(3).getData().size() > MAX_DATA_POINTS) {
-                            lineChart.getData().remove(3);
-                        } else {
-                            break;
+                    // Ensure pretend trade series are in the chart and properly styled
+                    if (!lineChart.getData().contains(pretendBuySeries)) {
+                        lineChart.getData().add(pretendBuySeries);
+                    }
+                    if (!lineChart.getData().contains(pretendSellSeries)) {
+                        lineChart.getData().add(pretendSellSeries);
+                    }
+                    
+                    // Style the pretend trade series to have no line
+                    if (pretendBuySeries.getNode() != null) {
+                        pretendBuySeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+                    }
+                    if (pretendSellSeries.getNode() != null) {
+                        pretendSellSeries.getNode().setStyle("-fx-stroke: transparent; -fx-stroke-width: 0;");
+                    }
+                    
+                    // Trim series data if we've exceeded the maximum number of data points
+                    if (shouldTrimSeries) {
+                        // Keep only the most recent MAX_DATA_POINTS in each series
+                        while (tradePriceSeries.getData().size() > MAX_DATA_POINTS) {
+                            tradePriceSeries.getData().remove(0);
+                        }
+                        while (avgAskPriceSeries.getData().size() > MAX_DATA_POINTS) {
+                            avgAskPriceSeries.getData().remove(0);
+                        }
+                        while (avgBidPriceSeries.getData().size() > MAX_DATA_POINTS) {
+                            avgBidPriceSeries.getData().remove(0);
+                        }
+                        
+                        // Also trim any additional series (pretend trades)
+                        while (lineChart.getData().size() > 5) { // Changed from 3 to 5 to account for pretend trade series
+                            if (lineChart.getData().get(5).getData().size() > MAX_DATA_POINTS) {
+                                lineChart.getData().remove(5);
+                            } else {
+                                break;
+                            }
                         }
                     }
-                }
-                
-                // Add data to the price series
-                XYChart.Data<Number, Number> tradeData = new XYChart.Data<>(seq, dataPoint.getTradePrice());
-                XYChart.Data<Number, Number> askData = new XYChart.Data<>(seq, dataPoint.getAvgAskPrice());
-                XYChart.Data<Number, Number> bidData = new XYChart.Data<>(seq, dataPoint.getAvgBidPrice());
-                
-                tradePriceSeries.getData().add(tradeData);
-                avgAskPriceSeries.getData().add(askData);
-                avgBidPriceSeries.getData().add(bidData);
-                
-                // Apply styles to the new data points - only if they're visible
-                // This reduces the number of DOM nodes created
-                boolean isVisible = liveMode.get() || 
-                    (seq >= xAxis.getLowerBound() && seq <= xAxis.getUpperBound());
-                
-                if (isVisible) {
-                // Apply styles to the new data points
-                if (tradeData.getNode() != null) {
-                    tradeData.getNode().setStyle("-fx-background-color: #ff0000, white; -fx-background-radius: 5px; -fx-padding: 5px;");
-                }
-                
-                if (askData.getNode() != null) {
-                    askData.getNode().setStyle("-fx-background-color: #00ff00, white; -fx-background-radius: 5px; -fx-padding: 5px;");
-                }
-                
-                if (bidData.getNode() != null) {
-                    bidData.getNode().setStyle("-fx-background-color: #0000ff, white; -fx-background-radius: 5px; -fx-padding: 5px;");
-                }
-                
-                    // Add tooltips to the data points - only for visible points
-                    // and only every 5th point to reduce memory usage
-                    if (seq % 5 == 0) {
-                addTooltipToLastDataPoint(tradePriceSeries, dataPoint);
-                addTooltipToLastDataPoint(avgAskPriceSeries, dataPoint);
-                addTooltipToLastDataPoint(avgBidPriceSeries, dataPoint);
+                    
+                    // Add data to the price series
+                    XYChart.Data<Number, Number> tradeData = new XYChart.Data<>(seq, dataPoint.getTradePrice());
+                    XYChart.Data<Number, Number> askData = new XYChart.Data<>(seq, dataPoint.getAvgAskPrice());
+                    XYChart.Data<Number, Number> bidData = new XYChart.Data<>(seq, dataPoint.getAvgBidPrice());
+                    
+                    tradePriceSeries.getData().add(tradeData);
+                    avgAskPriceSeries.getData().add(askData);
+                    avgBidPriceSeries.getData().add(bidData);
+                    
+                    // Add pretend trade to the chart if present
+                    if (hasPretendTradePoint) {
+                        com.ibbe.entity.Trade trade = dataPoint.getPretendTrade();
+                        double pretendTradePrice = trade.getPrice().doubleValue();
+                        
+                        // Add the trade point to the appropriate pretend trade series
+                        XYChart.Data<Number, Number> tradePoint = new XYChart.Data<>(seq, pretendTradePrice);
+                        String tradeType = trade.getMakerSide();
+                        
+                        if (tradeType.toLowerCase().contains("buy")) {
+                            pretendBuySeries.getData().add(tradePoint);
+                            
+                            // Style the trade point as a solid green triangle
+                            if (tradePoint.getNode() != null) {
+                                tradePoint.getNode().setStyle("-fx-background-color: #00AA00; -fx-background-radius: 0px; -fx-padding: 8px;");
+                                tradePoint.getNode().setRotate(180); // Point upward
+                            }
+                        } else {
+                            pretendSellSeries.getData().add(tradePoint);
+                            
+                            // Style the trade point as a solid red triangle
+                            if (tradePoint.getNode() != null) {
+                                tradePoint.getNode().setStyle("-fx-background-color: #AA0000; -fx-background-radius: 0px; -fx-padding: 8px;");
+                                tradePoint.getNode().setRotate(0); // Point downward
+                            }
+                        }
+                        
+                        // Add tooltip to the trade point
+                        StringBuilder tooltipText = new StringBuilder();
+                        tooltipText.append("Trade Type: ").append(tradeType.toUpperCase()).append("\n");
+                        tooltipText.append("Price: ").append(String.format("%.2f", trade.getPrice())).append("\n");
+                        tooltipText.append("Amount: ").append(String.format("%.4f", trade.getAmount())).append("\n");
+                        tooltipText.append("Time: ").append(dateFormatter.format(new Date(dataPoint.getTimestamp()))).append("\n");
+                        
+                        Tooltip tooltip = new Tooltip(tooltipText.toString());
+                        Tooltip.install(tradePoint.getNode(), tooltip);
+                        
+                        // Ensure pretend trades are visible
+                        ensurePretendTradesVisible();
                     }
+                    
+                    // Apply styles to the new data points - only if they're visible
+                    boolean isVisible = liveMode.get() || 
+                        (seq >= xAxis.getLowerBound() && seq <= xAxis.getUpperBound());
+                    
+                    if (isVisible) {
+                        // Apply styles to the new data points
+                        if (tradeData.getNode() != null) {
+                            tradeData.getNode().setStyle("-fx-background-color: #ff0000, white; -fx-background-radius: 5px; -fx-padding: 5px;");
+                        }
+                        
+                        if (askData.getNode() != null) {
+                            askData.getNode().setStyle("-fx-background-color: #00ff00, white; -fx-background-radius: 5px; -fx-padding: 5px;");
+                        }
+                        
+                        if (bidData.getNode() != null) {
+                            bidData.getNode().setStyle("-fx-background-color: #0000ff, white; -fx-background-radius: 5px; -fx-padding: 5px;");
+                        }
+                        
+                        // Add tooltips to the data points - only for visible points
+                        // and only every 5th point to reduce memory usage
+                        if (seq % 5 == 0) {
+                            addTooltipToLastDataPoint(tradePriceSeries, dataPoint);
+                            addTooltipToLastDataPoint(avgAskPriceSeries, dataPoint);
+                            addTooltipToLastDataPoint(avgBidPriceSeries, dataPoint);
+                        }
+                    }
+                    
+                    // If we've received a batch of data or we're updating the charts, update the view
+                    if (shouldUpdateCharts || isFirstBatch) {
+                        // If we're in live mode, show the most recent data
+                        // Otherwise, show the beginning of the data (for historical view)
+                        double sliderValue = liveMode.get() ? 1.0 : 0.0;
+                        updateChartView(sliderValue);
+                    }
+                    
+                    // If this data point has a pretend trade, schedule multiple checks to ensure it remains visible
+                    if (hasPretendTradePoint) {
+                        scheduleMultipleChecksForPretendTrades();
+                    } else {
+                        // Even without a pretend trade, force a layout pass to ensure everything is properly displayed
+                        lineChart.layout();
+                        amountChart.layout();
+                    }
+                    
+                    // Update the trade history with all pretend trades
+                    if (hasPretendTradePoint) {
+                        List<PerformanceData> pointsWithTrade = new ArrayList<>();
+                        pointsWithTrade.add(dataPoint);
+                        updateTradeHistoryFromWindow(pointsWithTrade);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error adding data point to chart: " + e.getMessage());
+                    e.printStackTrace();
+                } finally {
+                    // Set data loading flag to false
+                    isDataLoading.set(false);
                 }
-                
-                // If we've received a batch of data or we're updating the charts, update the view
-                if (shouldUpdateCharts || isFirstBatch) {
-                    // If we're in live mode, show the most recent data
-                    // Otherwise, show the beginning of the data (for historical view)
-                    double sliderValue = liveMode.get() ? 1.0 : 0.0;
-                    updateChartView(sliderValue);
-                }
-            } catch (Exception e) {
-                System.err.println("Error adding data point to chart: " + e.getMessage());
-                e.printStackTrace();
-            }
-        });
+            });
+        } catch (Exception e) {
+            System.err.println("Error processing data point: " + e.getMessage());
+            e.printStackTrace();
+            // Set data loading flag to false in case of exception
+            isDataLoading.set(false);
+        }
     }
     
     /**
@@ -1549,6 +2091,9 @@ public class PerformanceWindow extends Application {
      */
     @Override
     public void stop() {
+        // Stop continuous checks for pretend trade visibility
+        stopContinuousChecksForPretendTrades();
+        
         // Cancel any pending timers
         if (resizeTimer != null) {
             resizeTimer.cancel();
@@ -1597,5 +2142,51 @@ public class PerformanceWindow extends Application {
     public void updateBalanceDisplay(BigDecimal currencyBalance, BigDecimal coinBalance, BigDecimal profit) {
         // Call the private method to update the balance and profit
         updateBalanceAndProfit(currencyBalance, coinBalance, profit);
+    }
+    
+    /**
+     * Start continuous checks for pretend trade visibility
+     * This ensures they remain visible during data loading and scrolling
+     */
+    private void startContinuousChecksForPretendTrades() {
+        // Cancel any existing timer
+        stopContinuousChecksForPretendTrades();
+        
+        // Create a new timer for continuous checks
+        continuousCheckTimer = new Timer();
+        continuousCheckTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                Platform.runLater(() -> {
+                    ensurePretendTradesVisible();
+                });
+            }
+        }, 0, 500); // Check every 500ms
+    }
+    
+    /**
+     * Stop continuous checks for pretend trade visibility
+     */
+    private void stopContinuousChecksForPretendTrades() {
+        if (continuousCheckTimer != null) {
+            continuousCheckTimer.cancel();
+            continuousCheckTimer = null;
+        }
+    }
+
+    /**
+     * Schedule a check to ensure pretend trades are visible after a delay
+     */
+    private void schedulePretendTradeVisibilityCheck(int delayMs) {
+        Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                Platform.runLater(() -> {
+                    ensurePretendTradesVisible();
+                    disablePretendTradeLines();
+                });
+            }
+        }, delayMs);
     }
 } 

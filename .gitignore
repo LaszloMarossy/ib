@@ -80,3 +80,8 @@ temp_extract/
 *.flv
 *.mov
 *.wmv 
+scripts/gc.log.0
+scripts/gc.log.1
+scripts/gc.log.2
+scripts/gc.log.3
+scripts/gc.log.4

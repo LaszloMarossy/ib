@@ -250,8 +250,7 @@ public class TradesConsumer {
                     if (records.count() > 0) {
                         logger.debug("Received {} records", records.count());
 
-                        Trade previousTrade = null;
-                        
+
                         // going through the messages in a loop
                         for (ConsumerRecord<String, String> record : records) {
                             // Update last offset for recovery purposes
@@ -259,13 +258,16 @@ public class TradesConsumer {
                             
                             totalMessages++;
                             Trade trade = unpackTrade(record);
+                            // skip if there is no order book payload with the record
+                            if (trade == null || trade.getObp() == null) {
+                                break;
+                            }
                             // there are some bad record where the price is likely set in pesos, not dollars - we should
                             // skip processing those!
-                            if (previousTrade != null && previousTrade.getObp() != null && trade != null && trade.getObp() != null) {
-                                // if the current trade's ask price is more than 3 times the previous trade's ask price,
-                                // then must have a contaminated kafka record that is in pesos - so skip processing this
-                                if (previousTrade.getObp().getAsks()[0].getP().multiply(BigDecimal.valueOf(3)).compareTo(
-                                    trade.getObp().getAsks()[0].getP()) < 0) {
+                            if (trade.getObp().getBids().length > 0) {
+                                // if the current trade's ask price is more than a million then must have a contaminated
+                                // kafka record that is in pesos - so skip processing this
+                                if (trade.getObp().getAsks()[0].getP().compareTo(BigDecimal.valueOf(1000000)) > 0) {
                                     break;
                                 }
                             }
@@ -273,14 +275,10 @@ public class TradesConsumer {
                             // Notify message handler if registered
                             if (messageHandler != null && trade != null) {
                                 // Ensure OrderBookPayload is not null to prevent NullPointerException
-                                if (trade.getObp() == null) {
-                                    logger.warn("Trade has null OrderBookPayload, creating empty one");
-                                    trade.setObp(new OrderBookPayload(new Order[0], new Order[0], null, 0));
-                                }
-                                
+
                                 boolean continueProcessing = messageHandler.handleMessage(trade);
                                 // set the current trade as the previous trade
-                                previousTrade = trade;
+
                                 if (!continueProcessing) {
                                     logger.info("Message handler requested to stop processing");
                                     running.set(false);
