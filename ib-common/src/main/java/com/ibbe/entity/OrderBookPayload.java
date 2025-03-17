@@ -10,12 +10,13 @@ public class OrderBookPayload {
   private Timestamp updated_at;
   private long sequence;
 
-  public OrderBookPayload(@JsonProperty("trades") Order[] asks,
+  public OrderBookPayload(@JsonProperty("asks") Order[] asks,
                           @JsonProperty("bids") Order[] bids,
                           @JsonProperty("updated_at") Timestamp updated_at,
                           @JsonProperty("sequence") long sequence) {
-    this.asks = asks;
-    this.bids = bids;
+    // Handle null arrays with empty arrays as fallback
+    this.asks = asks != null ? asks : new Order[0];
+    this.bids = bids != null ? bids : new Order[0];
     this.updated_at = updated_at;
     this.sequence = sequence;
   }

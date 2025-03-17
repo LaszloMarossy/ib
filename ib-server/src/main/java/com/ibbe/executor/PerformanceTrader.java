@@ -1,61 +1,39 @@
 package com.ibbe.executor;
 
-import com.ibbe.cfg.ApplicationContextProvider;
-import com.ibbe.entity.BitsoDataAggregator;
-import com.ibbe.entity.FxTradesDisplayData;
+import com.ibbe.entity.PerformanceData;
 import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeConfig;
+import com.ibbe.entity.TrendData;
 import com.ibbe.util.PropertiesUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationContext;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import static com.ibbe.entity.Tick.TICK_DOWN;
 import static com.ibbe.entity.Tick.TICK_UP;
 
 /**
- * Asynchronous executor that handles trading decisions and execution. Created by IbbeController via TraderWrapper
- * Each instance represents a unique trading configuration and manages its own trades. (inputs from ItsyBitsoWindow)
- * 
- * Key responsibilities:
- * 1. Monitors trade events and executes trades based on configured conditions and BitsoDataAggregator events
- * 2. Maintains trading state and balances
- * 3. Updates display data for UI monitoring
- * 4. Manages pretend trades for simulation
+ * Asynchronous executor that handles trading decisions and execution on retrieved Kafka trade records
  */
-public class PerformanceTrader extends AsyncExecutor {
+public class PerformanceTrader {
 
   private static final Logger logger = LoggerFactory.getLogger(PerformanceTrader.class);
   private static final String MARKER_SIDE_SELL = "PRETEND sell";
   private static final String MARKER_SIDE_BUY = "PRETEND buy";
 
-  private static int topX;
-  private String downN;
-  private String upM;
-  private String id;
-  private BigDecimal startingAccountValue = null;
-  // list of trades Itsybitso WOULD make
-  private ArrayList<Trade> pretendTrades = new ArrayList<>();
-  private ExecutorService tradeExe;
-  private FxTradesDisplayData fxTradesDisplayData;
-  private BitsoDataAggregator bitsoDataAggregator;
-  private XchangeRatePoller poller;
+  // keeps ups and downs from the user input
+  private final int downN;
+  private final int upN;
+  // represents the tade config's ID; not used in performance trading
+  private final String id;
 
   private static final BigDecimal TRADING_FEE_BUY = new BigDecimal("1.01");
   private static final BigDecimal TRADING_FEE_SELL = new BigDecimal("0.99");
+  private static final BigDecimal BUY_AMT = new BigDecimal(PropertiesUtil.getProperty("buy.amt"));
+  private static final BigDecimal SELL_AMT = new BigDecimal(PropertiesUtil.getProperty("sell.amt"));
   private static final int TRADE_ID_OFFSET = 5;
-  private static final int THREAD_POOL_SIZE = 5;
 
   /**
    * Enum representing trade types with their corresponding marker strings.
@@ -77,73 +55,113 @@ public class PerformanceTrader extends AsyncExecutor {
   }
 
   /**
-   * Retrieves display data for a specific trading configuration.
-   * Used by monitoring endpoints (TradingMonitorEndpoint) to get current trading status.
-   */
-  public FxTradesDisplayData getConfigsDisplayData(String id) {
-    return fxTradesDisplayData;
-  }
-
-  /**
    * Creates a new trading executor with the specified configuration.
-   * Initializes trading state and registers for trade events.
-   * Called by ItsyBitsoWindow via IbbeController and TraderWrapper
-   * @param tradeConfig the trading configuration to use (as passed by ItsyBitsoWindow)
+   * @param tradeConfig the trading configuration to use (as passed by PerformanceAnalysisEndpoint)
    */
   public PerformanceTrader(TradeConfig tradeConfig) {
     if (tradeConfig == null) {
       throw new IllegalArgumentException("TradeConfig cannot be null");
     }
-    try {
-      ApplicationContext context = ApplicationContextProvider.getApplicationContext();
-      this.poller = context.getBean(XchangeRatePoller.class);
-      this.bitsoDataAggregator = context.getBean(BitsoDataAggregator.class);
-      downN = tradeConfig.getDowns();
-      upM = tradeConfig.getUps();
-      id = tradeConfig.getId();
-      topX = Integer.parseInt(PropertiesUtil.getProperty("displaydata.topx"));
-
-      tradeExe = Executors.newFixedThreadPool(5);
-
-      fxTradesDisplayData = new FxTradesDisplayData(new BigDecimal(PropertiesUtil.getProperty("starting.bal.currency")).setScale(2, RoundingMode.DOWN),
-          new BigDecimal(PropertiesUtil.getProperty("starting.bal.coin")).setScale(4, RoundingMode.DOWN),
-          new BigDecimal(0).setScale(2, RoundingMode.DOWN), new ArrayList<>());
-      // register for new trades identified by the back-end
-    } catch (Exception e) {
-      e.printStackTrace();
-      logger.error("SHIIIIIIT");
-    }
-    logger.info("ADDED UPS:" + tradeConfig.getUps() + " DOWNS:" + tradeConfig.getDowns() + " ID:" + tradeConfig.getId());
+    downN = Integer.parseInt(tradeConfig.getDowns());
+    upN = Integer.parseInt(tradeConfig.getUps());
+    id = tradeConfig.getId();
+    logger.info("Performance according to UPS:{} DOWNS:{} ID:{}", upN, downN, id);
   }
 
   /**
-   * Handles trade events from BitsoDataAggregator.
-   * Evaluates trading conditions and executes trades when criteria are met.
+   * Handles trade events read from kafka and makes trade decisions.
+   *
+   * Buy signal:
+   * - MA5 > MA20 (short-term trend of moving averages exceeds long-term trend, indicating upward momentum).
+   * - QBt > QAt (average bid amount exceeds the average ask amount).
+   * - Pt > Pt−1 >⋯> Pt−N+1 (Consistent price increases)
+   * - Vup > Vdown (sum of amounts for trades where Pt > Pt−1 or where Pt > Pt−1 over the last NN trades).
+   *
+   * Sell signal:
+   * - MA5<MA20 (short-term trend below long-term trend, indicating downward momentum).
+   * - QAt>QBt (stronger selling interest).
    */
-  public void handleNewTrade(Trade trade) {
+  public void makeTradeDecision(Trade trade, PerformanceData performanceData) {
+    // Skip if essential data is missing
+    if (trade == null || performanceData == null || trade.getNthStatus() == null || 
+        trade.getTick() == null) {
+      logger.warn("Skipping trade decision due to missing data");
+      return;
+    }
+
+    // todo see if more of the trendData info can be used in trade decisions!
+    Trade pretendTrade = null;
     try {
-      logger.info("processing kafka trade " + trade.getTid() + " at price " + trade.getPrice());
-      if (trade.getNthStatus().equals(TICK_DOWN.toString() + downN) && trade.getTick().equals(TICK_DOWN)) {
-        trade(trade, MARKER_SIDE_SELL);
+      // here make trade decision based on configuration
+      if (sellingTime(trade, performanceData)) {
+        pretendTrade = trade(trade, MARKER_SIDE_BUY);
+        updateBalances(pretendTrade, performanceData);
+      } else {
+        if (buyingTime(trade, performanceData)) {
+          pretendTrade = trade(trade, MARKER_SIDE_SELL);
+          updateBalances(pretendTrade, performanceData);
+        }
       }
-      if (trade.getNthStatus().equals(TICK_UP.toString() + upM) && trade.getTick().equals(TICK_UP)) {
-        trade(trade, MARKER_SIDE_BUY);
-      }
-      refreshDisplayWithNewTrade(trade);
+     performanceData.setPretendTrade(pretendTrade);
     } catch (Exception e) {
-      e.printStackTrace();
-      throw new RuntimeException(e);
+      logger.error("Error in makeTradeDecision: {}", e.getMessage(), e);
     }
   }
 
-  /**
-   * Creates and executes a trade asynchronously.
-   * Primarily used for future real trading implementation.
-   */
-  public Future<Trade> asyncTrade(Trade mostRecentTrade, String typeOfTrade) {
-    Callable<Trade> call = () -> trade(mostRecentTrade, typeOfTrade);
-    return tradeExe.submit(call);
+  private boolean sellingTime(Trade trade, PerformanceData performanceData) {
+    // Check for null values to prevent NullPointerException
+    if (trade == null || performanceData == null || trade.getNthStatus() == null || 
+        trade.getTick() == null) {
+      return false;
+    }
+    
+    if (
+      // a value was given for the up condition by the user
+      upN > 0 &&
+      // average bid amount exceeds average ask amount
+      // performanceData.avgBidAmount > performanceData.avgAskAmount &&
+      // short term trend of prices exceeds long term trend
+      // performanceData.STMAPrice > performanceData.LTMAPrice &&
+      // sum amounts for up trades are greater than for down trades over last N trades
+      // performanceData.SAUp > performanceData.SADown &&
+      // latest trade price is closer to the best ask price, than to the best bid price
+      // performanceData.priceCloserToBestAsk > 0 &&
+      // latest trade matches the configured Nth up value
+      trade.getNthStatus().equals(TICK_UP.toString() + upN) &&
+      // last trade was UP from before
+      trade.getTick().equals(TICK_UP)
+    )
+      return true;
+    return false;
   }
+
+  private boolean buyingTime(Trade trade, PerformanceData performanceData) {
+    // Check for null values to prevent NullPointerException
+    if (trade == null || performanceData == null || trade.getNthStatus() == null || 
+        trade.getTick() == null) {
+      return false;
+    }
+    
+    if (
+      // a value was given for the down condition by the user
+      downN > 0 &&
+      // average ask amount exceeds average bid amount
+      // performanceData.avgBidAmount < performanceData.avgAskAmount &&
+      // short term trend of prices below long term trend
+      // performanceData.STMAPrice < performanceData.LTMAPrice &&
+      // sum amounts for down trades are greater than for up trades over last N trades
+      // performanceData.SAUp < performanceData.SADown &&
+      // latest trade price is closer to the best bid price, than to the best ask price
+      // performanceData.priceCloserToBestAsk < 0 &&
+      // latest trade matches the configured Nth up value
+      trade.getNthStatus().equals(TICK_DOWN.toString() + downN) &&
+      // last trade was DOWN from before
+      trade.getTick().equals(TICK_DOWN)
+    )
+      return true;
+    return false;
+  }
+
 
   /**
    * Creates a new pretend trade based on the most recent market trade.
@@ -152,74 +170,86 @@ public class PerformanceTrader extends AsyncExecutor {
    * @param typeOfTrade the type of trade to create (as passed by ItsyBitsoWindow)
    */
   public Trade trade(Trade mostRecentTrade, String typeOfTrade) {
-    BigDecimal amount = new BigDecimal(PropertiesUtil.getProperty(
-        MARKER_SIDE_BUY.equals(typeOfTrade) ? "buy.amt" : "sell.amt"))
-        .setScale(4, RoundingMode.DOWN);
+    if (mostRecentTrade == null || typeOfTrade == null) {
+      logger.warn("Cannot create pretend trade with null parameters");
+      return null;
+    }
+    
+    BigDecimal amount = (MARKER_SIDE_BUY.equals(typeOfTrade) ? BUY_AMT : SELL_AMT).setScale(4, RoundingMode.DOWN);
         
     Trade pretendTrade = Trade.builder()
         .createdAt(mostRecentTrade.getCreatedAt())
         .amount(amount)
         .makerSide(typeOfTrade)
+        // todo here use either bids or asks price instead of latest trade's price..
         .price(mostRecentTrade.getPrice())
         .tid(mostRecentTrade.getTid() + TRADE_ID_OFFSET)
         .build();
 
-    logger.info("$$$$$$$$$$ " + id + " >> " + pretendTrade.getTid());
-    fxTradesDisplayData.addRecentTradeWs(pretendTrade);
-    pretendTrades.add(pretendTrade);
-    updateBalances(pretendTrade);
+    logger.info("$$PRETEND$$ {} >> {}", id, pretendTrade.getTid());
+    // perform here as this is when balances are affected
     return pretendTrade;
-  }
-
-  /**
-   * Updates the display data with new trade information.
-   * Calculates latest prices and updates UI elements.
-   */
-  public void refreshDisplayWithNewTrade(Trade trade) {
-    if (trade != null) {
-      fxTradesDisplayData.addRecentTradeWs(trade);
-      // IMPORTANT: No conversion needed as the price is already in USD
-      BigDecimal latestPrice = trade.getPrice();
-      logger.info("Trade ID: {} - Setting latest price to: {} USD", trade.getTid(), latestPrice);
-      fxTradesDisplayData.setLatestPrice(latestPrice);
-      if (startingAccountValue == null) {
-        startingAccountValue = new BigDecimal(0);
-      }
-    }
   }
 
   /**
    * Updates account balances after a trade execution.
    * Handles both buy and sell scenarios with their respective fees.
    */
-  private void updateBalances(Trade pretendTrade) {
+  private void updateBalances(Trade pretendTrade, PerformanceData performanceData) {
+    if (pretendTrade == null || performanceData == null || 
+        performanceData.getFxTradesDisplayData() == null) {
+      logger.warn("Cannot update balances with null parameters");
+      return;
+    }
+    
+    BigDecimal currentCurrencyBalance = performanceData.getFxTradesDisplayData().getCurrencyBalance();
+    BigDecimal currentCoinBalance = performanceData.getFxTradesDisplayData().getCoinBalance();
+    
+    if (currentCurrencyBalance == null || currentCoinBalance == null || 
+        pretendTrade.getAmount() == null || pretendTrade.getPrice() == null) {
+      logger.warn("Cannot update balances with null balance or trade values");
+      return;
+    }
+    
+    logger.info("Before trade - Currency: {}, Coin: {}", 
+                currentCurrencyBalance, currentCoinBalance);
+    
+    BigDecimal priceOfTrade = pretendTrade.getAmount().multiply(pretendTrade.getPrice());
     switch (pretendTrade.getMakerSide()) {
       case MARKER_SIDE_BUY -> {
-        fxTradesDisplayData.setCurrencyBalance(fxTradesDisplayData.getCurrencyBalance().subtract(
-            pretendTrade.getAmount().multiply(
-                pretendTrade.getPrice().divide(new BigDecimal(poller.getUsdMxn()), RoundingMode.DOWN)
-            ).multiply(TRADING_FEE_BUY)
-        ).setScale(2, RoundingMode.DOWN));
-        fxTradesDisplayData.setCoinBalance(fxTradesDisplayData.getCoinBalance().add(pretendTrade.getAmount()).setScale(2, RoundingMode.DOWN));
+        BigDecimal newCurrencyBalance = currentCurrencyBalance.subtract(
+            priceOfTrade.multiply(TRADING_FEE_BUY)).setScale(2, RoundingMode.DOWN);
+        BigDecimal newCoinBalance = currentCoinBalance.add(
+            pretendTrade.getAmount()).setScale(8, RoundingMode.DOWN);
+            
+        logger.info("BUY Trade - Price: {}, Amount: {}, New Currency: {}, New Coin: {}", 
+                    pretendTrade.getPrice(), pretendTrade.getAmount(), 
+                    newCurrencyBalance, newCoinBalance);
+                    
+        performanceData.getFxTradesDisplayData().setCurrencyBalance(newCurrencyBalance);
+        performanceData.getFxTradesDisplayData().setCoinBalance(newCoinBalance);
       }
       case MARKER_SIDE_SELL -> {
-        fxTradesDisplayData.setCurrencyBalance(fxTradesDisplayData.getCurrencyBalance().add(
-            pretendTrade.getAmount().multiply(
-                pretendTrade.getPrice().divide(new BigDecimal(poller.getUsdMxn()), RoundingMode.DOWN)
-            ).multiply(TRADING_FEE_SELL)
-        ).setScale(2, RoundingMode.DOWN));
-        fxTradesDisplayData.setCoinBalance(fxTradesDisplayData.getCoinBalance().subtract(pretendTrade.getAmount()).setScale(2, RoundingMode.DOWN));
+        BigDecimal newCurrencyBalance = currentCurrencyBalance.add(
+            priceOfTrade.multiply(TRADING_FEE_SELL)).setScale(2, RoundingMode.DOWN);
+        BigDecimal newCoinBalance = currentCoinBalance.subtract(
+            pretendTrade.getAmount()).setScale(8, RoundingMode.DOWN);
+            
+        logger.info("SELL Trade - Price: {}, Amount: {}, New Currency: {}, New Coin: {}", 
+                    pretendTrade.getPrice(), pretendTrade.getAmount(), 
+                    newCurrencyBalance, newCoinBalance);
+                    
+        performanceData.getFxTradesDisplayData().setCurrencyBalance(newCurrencyBalance);
+        performanceData.getFxTradesDisplayData().setCoinBalance(newCoinBalance);
       }
-      default -> logger.info("!!! WRONG MARKER SIDE: " + pretendTrade.getMakerSide());
+      default -> logger.info("!!! WRONG MARKER SIDE: {}", pretendTrade.getMakerSide());
     }
-  }
-
-  /**
-   * Returns the current trade configuration for this executor.
-   * @return A TradeConfig object with the current configuration values
-   */
-  public TradeConfig getTradeConfig() {
-    return new TradeConfig(id, upM, downN);
+    
+    // Log the updated balances and profit
+    logger.info("After trade - Currency: {}, Coin: {}, Profit: {}", 
+                performanceData.getFxTradesDisplayData().getCurrencyBalance(),
+                performanceData.getFxTradesDisplayData().getCoinBalance(),
+                performanceData.getFxTradesDisplayData().getProfit());
   }
 
 }

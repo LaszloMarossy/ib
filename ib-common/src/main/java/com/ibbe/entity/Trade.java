@@ -37,10 +37,10 @@ public class Trade implements Comparable<Trade> {
                String makerSide,
                BigDecimal price,
                Long tid) {
-    this.createdAt = createdAt;
-    this.amount = amount;
-    this.makerSide = makerSide;
-    this.price = price;
+    this.createdAt = createdAt != null ? createdAt : "";
+    this.amount = amount != null ? amount : BigDecimal.ZERO;
+    this.makerSide = makerSide != null ? makerSide : "buy"; // Default to buy if null
+    this.price = price != null ? price : BigDecimal.ZERO;
     this.tid = tid;
   }
 
@@ -48,14 +48,27 @@ public class Trade implements Comparable<Trade> {
    * Deep copy constructor to create independent trade instance
    */
   public Trade(Trade trade) {
-//    this.book = new String(trade.book);
-    this.createdAt = new String(trade.createdAt);
-    this.amount = trade.amount == null ? null : new BigDecimal(trade.amount.toString());
-    this.makerSide = new String(trade.makerSide);
-    this.price = new BigDecimal(trade.price.toString());
+    if (trade == null) {
+      // Create a default trade if null is passed
+      this.createdAt = "";
+      this.amount = BigDecimal.ZERO;
+      this.makerSide = "buy";
+      this.price = BigDecimal.ZERO;
+      this.tid = null;
+      this.tick = null;
+      this.nthStatus = null;
+      return;
+    }
+    
+    // Copy values with null checks
+    this.createdAt = trade.createdAt != null ? new String(trade.createdAt) : "";
+    this.amount = trade.amount != null ? new BigDecimal(trade.amount.toString()) : BigDecimal.ZERO;
+    this.makerSide = trade.makerSide != null ? new String(trade.makerSide) : "buy";
+    this.price = trade.price != null ? new BigDecimal(trade.price.toString()) : BigDecimal.ZERO;
     this.tid = trade.tid;
-    this.tick = trade.tick == null ? null : Tick.valueOf(trade.tick.name());
-    this.nthStatus = trade.nthStatus == null ? null : new String(trade.nthStatus);
+    this.tick = trade.tick != null ? Tick.valueOf(trade.tick.name()) : null;
+    this.nthStatus = trade.nthStatus != null ? new String(trade.nthStatus) : null;
+    this.obp = trade.obp;
   }
 
 //  public String getBook() {

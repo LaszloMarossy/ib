@@ -16,7 +16,7 @@
         <spring-boot.version>3.3.9</spring-boot.version>
         <javafx.version>21-ea+24</javafx.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring.version>6.1.5</spring.version>
+        <spring.version>6.1.17</spring.version>
         <jackson.version>2.16.1</jackson.version>
         <httpclient5.version>5.2.1</httpclient5.version>
     </properties>
@@ -142,19 +142,19 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-websocket</artifactId>
-            <version>6.1.5</version>
+            <version>${spring.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-messaging</artifactId>
-            <version>6.1.5</version>
+            <version>${spring.version}</version>
         </dependency>
         
         <!-- Spring Boot Context for ApplicationReadyEvent -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <version>3.3.9</version>
+            <version>${spring-boot.version}</version>
         </dependency>
         
         <!-- HTTP client -->
@@ -214,6 +214,18 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-assembly-plugin</artifactId>
                     <version>3.6.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>

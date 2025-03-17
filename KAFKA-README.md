@@ -60,3 +60,9 @@ All scripts assume Kafka is installed at `/Users/laszlo/dev/kafka_2.13-3.7.0`. I
 ```
 cd /Users/laszlo/dev/code/ib && rm -rf /Users/laszlo/kafka/data/bitso-trades-0/* && cp -R /Users/laszlo/kafka/data_backup/bitso-trades-0/* /Users/laszlo/kafka/data/bitso-trades-0/ && echo "Data restored from backup"
 ```
+
+## getting a particular kafka record in the command line:
+
+```
+ ~/dev/kafka_2.13-3.7.0/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic bitso-trades --partition 0 --offset 28143 --max-messages 1
+```

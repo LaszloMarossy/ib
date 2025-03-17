@@ -1,6 +1,7 @@
 package com.ibbe.fx;
 
 import com.ibbe.entity.PerformanceData;
+import com.ibbe.entity.FxTradesDisplayData;
 import com.ibbe.util.PropertiesUtil;
 import com.ibbe.websocket.PerformanceAnalysisClient;
 import javafx.application.Application;
@@ -49,11 +50,14 @@ import java.util.TimerTask;
  */
 public class PerformanceWindow extends Application {
 
-    // Maximum number of data points to keep in memory
-    private static final int MAX_DATA_POINTS = 5000;
+    // Maximum number of data points to keep in memory - reduced from 1000 to 500
+    private static final int MAX_DATA_POINTS = 500;
     
-    // Number of data points to display in the visible window
+    // Number of data points to display in the visible window - increased from 30 to 50
     private static final int VISIBLE_DATA_POINTS = 50;
+    
+    // Maximum number of trade history entries to keep
+    private static final int MAX_TRADE_HISTORY = 100;
     
     // Date formatter for X-axis
     private final SimpleDateFormat dateFormatter = new SimpleDateFormat("MM-dd HH:mm:ss");
@@ -96,6 +100,26 @@ public class PerformanceWindow extends Application {
     
     private Timer resizeTimer;
     
+    // Balance and profit tracking
+    private Label balanceLabel = new Label("Starting Balance: $0.00 | 0.00000000 BTC");
+    private Label currentBalanceLabel = new Label("Current Balance: $0.00 | 0.00000000 BTC");
+    private Label profitLabel = new Label("Profit: $0.00");
+    private BigDecimal startingCurrencyBalance = null;
+    private BigDecimal startingCoinBalance = null;
+    private BigDecimal currentCurrencyBalance = BigDecimal.ZERO;
+    private BigDecimal currentCoinBalance = BigDecimal.ZERO;
+    private BigDecimal currentProfit = BigDecimal.ZERO;
+    
+    // Trade history components
+    private ScrollPane tradeHistoryScrollPane;
+    private VBox tradeHistoryContainer = new VBox(5);
+    private Button toggleTradeHistoryButton = new Button("Show Trade History");
+    private boolean tradeHistoryVisible = false;
+    private final SimpleDateFormat tradeHistoryDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    
+    // Add a data summary label to show total records and visible window
+    private Label dataSummaryLabel = new Label("Data: 0 records (showing 0-0)");
+    
     public static void main(String[] args) {
         launch(args);
     }
@@ -103,15 +127,15 @@ public class PerformanceWindow extends Application {
     @Override
     public void start(Stage primaryStage) {
         // Print a message to confirm we're running the updated version
-        System.out.println("*******************************************");
-        System.out.println("* PerformanceWindow - Created: 2025-03-12 *");
-        System.out.println("*******************************************");
+        // System.out.println("*******************************************");
+        // System.out.println("* PerformanceWindow - Created: 2025-03-12 *");
+        // System.out.println("*******************************************");
         
         primaryStage.setTitle("Performance Analysis");
         
         // Initialize chart with improved axis configuration
         xAxis.setLabel("Record #");
-        yAxis.setLabel("Price/Amount");
+        yAxis.setLabel("$USD");
         xAxis.setAutoRanging(false);  // We'll control the range manually
         yAxis.setAutoRanging(false);  // We'll control the range manually
         yAxis.setForceZeroInRange(false); // Don't force zero in the range for better zoom
@@ -238,6 +262,10 @@ public class PerformanceWindow extends Application {
         // Set up status label
         statusLabel.setFont(new Font("Arial", 14));
         
+        // Style the data summary label
+        dataSummaryLabel.setFont(new Font("Arial", 14));
+        dataSummaryLabel.setStyle("-fx-font-weight: bold;");
+        
         // Create input layout
         HBox inputBox = new HBox(10, upsLabel, upsField, downsLabel, downsField, examineButton);
         inputBox.setAlignment(Pos.CENTER);
@@ -327,7 +355,67 @@ public class PerformanceWindow extends Application {
         
         chartsBox.getChildren().add(splitPane);
         
-        VBox root = new VBox(10, inputBox, statusLabel, chartsBox, sliderBox);
+        // Style the balance and profit labels
+        balanceLabel.setFont(new Font("Arial", 16));
+        balanceLabel.setStyle("-fx-font-weight: bold;");
+        currentBalanceLabel.setFont(new Font("Arial", 16));
+        currentBalanceLabel.setStyle("-fx-font-weight: bold;");
+        profitLabel.setFont(new Font("Arial", 16));
+        profitLabel.setStyle("-fx-font-weight: bold;");
+        
+        // Style the data summary label
+        dataSummaryLabel.setFont(new Font("Arial", 14));
+        dataSummaryLabel.setStyle("-fx-font-weight: bold;");
+        
+        // Create a HBox for the balance and profit labels
+        HBox balanceBox = new HBox(20, balanceLabel, currentBalanceLabel, profitLabel);
+        balanceBox.setAlignment(Pos.CENTER);
+        balanceBox.setPadding(new Insets(5, 0, 5, 0));
+        
+        // Create a separate HBox for the data summary
+        HBox dataSummaryBox = new HBox(dataSummaryLabel);
+        dataSummaryBox.setAlignment(Pos.CENTER);
+        dataSummaryBox.setPadding(new Insets(0, 0, 5, 0));
+        
+        // Set up trade history components
+        tradeHistoryContainer.setPadding(new Insets(10));
+        tradeHistoryContainer.setStyle("-fx-background-color: #f8f8f8; -fx-border-color: #ddd; -fx-border-width: 1px;");
+        tradeHistoryContainer.setMaxWidth(600); // Limit width to half of typical screen width
+        
+        // Add a header to the trade history
+        Label tradeHistoryHeader = new Label("Trade History (newest first)");
+        tradeHistoryHeader.setFont(new Font("Arial", 14));
+        tradeHistoryHeader.setStyle("-fx-font-weight: bold;");
+        tradeHistoryContainer.getChildren().add(tradeHistoryHeader);
+        
+        // Add placeholder entries to ensure minimum height
+        Label placeholder1 = new Label("No trades yet");
+        placeholder1.setFont(new Font("Arial", 12));
+        placeholder1.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
+        
+        Label placeholder2 = new Label("Trades will appear here when executed");
+        placeholder2.setFont(new Font("Arial", 12));
+        placeholder2.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
+        
+        tradeHistoryContainer.getChildren().addAll(placeholder1, placeholder2);
+        
+        tradeHistoryScrollPane = new ScrollPane(tradeHistoryContainer);
+        tradeHistoryScrollPane.setFitToWidth(true);
+        tradeHistoryScrollPane.setPrefHeight(100); // Reduced height for initial display
+        tradeHistoryScrollPane.setVisible(true); // Make visible by default
+        tradeHistoryScrollPane.setManaged(true); // Make managed by default
+        tradeHistoryVisible = true; // Set to visible by default
+        
+        // Remove toggle button functionality since we always want to show trade history
+        toggleTradeHistoryButton.setVisible(false);
+        toggleTradeHistoryButton.setManaged(false);
+        
+        // Create a VBox for the trade history components
+        VBox tradeHistoryBox = new VBox(5, tradeHistoryScrollPane);
+        tradeHistoryBox.setAlignment(Pos.CENTER);
+        
+        // Update the root VBox to include the new dataSummaryBox
+        VBox root = new VBox(10, inputBox, statusLabel, balanceBox, dataSummaryBox, tradeHistoryBox, chartsBox, sliderBox);
         root.setPadding(new Insets(10));
         VBox.setVgrow(chartsBox, Priority.ALWAYS);  // Allow charts box to grow vertically
         
@@ -337,7 +425,7 @@ public class PerformanceWindow extends Application {
         primaryStage.setScene(scene);
         primaryStage.show();
         
-        // Add resize listener to handle window resizing efficiently
+        // Add width listener to handle window resizing efficiently
         primaryStage.widthProperty().addListener((obs, oldVal, newVal) -> {
             // Use a timer to debounce resize events
             if (resizeTimer != null) {
@@ -347,7 +435,6 @@ public class PerformanceWindow extends Application {
             resizeTimer.schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    Platform.runLater(() -> {
                         // Update chart layout after resize
                         lineChart.layout();
                         amountChart.layout();
@@ -356,7 +443,6 @@ public class PerformanceWindow extends Application {
                         if (liveMode.get()) {
                             updateChartView(1.0);
                         }
-                    });
                 }
             }, 200); // 200ms delay
         });
@@ -392,8 +478,8 @@ public class PerformanceWindow extends Application {
         initializeChart();
         
         // Print debug info about the chart
-        System.out.println("Chart initialized with dimensions: " + lineChart.getWidth() + "x" + lineChart.getHeight());
-        System.out.println("Y-axis range: " + yAxis.getLowerBound() + " to " + yAxis.getUpperBound());
+        // System.out.println("Chart initialized with dimensions: " + lineChart.getWidth() + "x" + lineChart.getHeight());
+        // System.out.println("Y-axis range: " + yAxis.getLowerBound() + " to " + yAxis.getUpperBound());
     }
     
     /**
@@ -402,60 +488,238 @@ public class PerformanceWindow extends Application {
      * @param sliderValue The value of the slider (0.0 to 1.0)
      */
     private void updateChartView(double sliderValue) {
-        synchronized (dataPoints) {
-            if (dataPoints.isEmpty()) {
-                System.out.println("No data points available to update chart view");
+        // Get the current dataset size from the client
+        final int totalPoints = performanceClient.getDatasetSize();
+        final int totalRecords = performanceClient.getTotalRecordsReceived();
+        
+        if (totalPoints == 0) {
                 return;
             }
             
             // Calculate the visible range based on slider value
-            int totalPoints = dataPoints.size();
-            int visiblePoints = Math.min(VISIBLE_DATA_POINTS, totalPoints);
+        final int visiblePoints = Math.min(VISIBLE_DATA_POINTS, totalPoints);
             
             // Calculate the start index based on slider value
-            int startIndex = (int) Math.round((totalPoints - visiblePoints) * sliderValue);
-            startIndex = Math.max(0, Math.min(startIndex, totalPoints - visiblePoints));
-            
-            // Get the sequence numbers for the visible range
-            int minSeq = dataPoints.get(startIndex).getSequence();
-            int maxSeq = dataPoints.get(Math.min(startIndex + visiblePoints - 1, totalPoints - 1)).getSequence();
-            
-            System.out.println("Updating chart view with sequence range: " + minSeq + " to " + maxSeq + 
-                              " (slider value: " + sliderValue + ")");
-            
-            // Update the X-axis range
-            xAxis.setLowerBound(minSeq);
-            xAxis.setUpperBound(maxSeq);
-            xAxis.setTickUnit(Math.max(1, (maxSeq - minSeq) / 10)); // Adjust tick unit for readability
+        final int startIndex = Math.max(0, Math.min(
+            (int) Math.round((totalPoints - visiblePoints) * sliderValue),
+            totalPoints - visiblePoints));
+        
+        // Update the data summary label
+        final int endIndex = Math.min(startIndex + visiblePoints - 1, totalPoints - 1);
+        Platform.runLater(() -> {
+            dataSummaryLabel.setText(String.format("Data: %,d records (showing %,d-%,d of %,d)", 
+                totalRecords, startIndex + 1, endIndex + 1, totalPoints));
+        });
+        
+        // Get the window of data from the client
+        List<PerformanceData> windowData = 
+            performanceClient.getDataWindow(startIndex, visiblePoints);
+        
+        if (windowData.isEmpty()) {
+            return;
+        }
+        
+        // Update the chart with the window data
+        updateChartWithWindowData(windowData, startIndex);
+    }
+    
+    /**
+     * Updates the chart with a window of data from the client.
+     * Optimized for memory efficiency with large datasets.
+     * 
+     * @param windowData The window of data to display
+     * @param startIndex The start index of the window in the complete dataset
+     */
+    private void updateChartWithWindowData(List<PerformanceData> windowData, int startIndex) {
+        Platform.runLater(() -> {
+            try {
+                // Clear existing data in price chart
+                tradePriceSeries.getData().clear();
+                avgAskPriceSeries.getData().clear();
+                avgBidPriceSeries.getData().clear();
+                
+                // Clear existing data in amount chart
+                tradeAmountSeries.getData().clear();
+                avgAskAmountSeries.getData().clear();
+                avgBidAmountSeries.getData().clear();
+                
+                // Clear existing categories in amount chart
+                amountXAxis.getCategories().clear();
+                
+                // Remove any pretend trade series from the price chart
+                // Keep only the main series (trade price, ask price, bid price)
+                while (lineChart.getData().size() > 3) {
+                    lineChart.getData().remove(3);
+                }
             
             // Find min and max Y values in the visible range to auto-scale Y-axis
             double minY = Double.MAX_VALUE;
             double maxY = Double.MIN_VALUE;
-            
-            for (int i = startIndex; i < Math.min(startIndex + visiblePoints, totalPoints); i++) {
-                PerformanceData point = dataPoints.get(i);
+                double maxAmount = 0.0;
                 
-                // Get trade price (already a primitive double, no need for null check)
+                // Batch data points for more efficient rendering
+                List<XYChart.Data<Number, Number>> tradePriceData = new ArrayList<>(windowData.size());
+                List<XYChart.Data<Number, Number>> avgAskPriceData = new ArrayList<>(windowData.size());
+                List<XYChart.Data<Number, Number>> avgBidPriceData = new ArrayList<>(windowData.size());
+                
+                // Lists for amount chart data
+                List<String> amountCategories = new ArrayList<>();
+                List<XYChart.Data<String, Number>> tradeAmountData = new ArrayList<>();
+                List<XYChart.Data<String, Number>> avgAskAmountData = new ArrayList<>();
+                List<XYChart.Data<String, Number>> avgBidAmountData = new ArrayList<>();
+                
+                // Process each data point in the window
+                for (int i = 0; i < windowData.size(); i++) {
+                    PerformanceData point = windowData.get(i);
+                    int seq = point.getSequence();
+                    
+                    // Add data to the price series
                 double tradePrice = point.getTradePrice();
-                if (tradePrice > 0) {  // Only consider positive prices
+                    tradePriceData.add(new XYChart.Data<>(seq, tradePrice));
+                    if (tradePrice > 0) {
                     minY = Math.min(minY, tradePrice);
                     maxY = Math.max(maxY, tradePrice);
                 }
                 
-                // Get ask price (already a primitive double, no need for null check)
                 double askPrice = point.getAvgAskPrice();
-                if (askPrice > 0) {  // Only consider positive prices
+                    avgAskPriceData.add(new XYChart.Data<>(seq, askPrice));
+                    if (askPrice > 0) {
                     minY = Math.min(minY, askPrice);
                     maxY = Math.max(maxY, askPrice);
                 }
                 
-                // Get bid price (already a primitive double, no need for null check)
                 double bidPrice = point.getAvgBidPrice();
-                if (bidPrice > 0) {  // Only consider positive prices
+                    avgBidPriceData.add(new XYChart.Data<>(seq, bidPrice));
+                    if (bidPrice > 0) {
                     minY = Math.min(minY, bidPrice);
                     maxY = Math.max(maxY, bidPrice);
                 }
-            }
+                    
+                    // Add pretend trade to the price chart if present
+                    if (point.getPretendTrade() != null && point.getPretendTrade().getPrice() != null) {
+                        com.ibbe.entity.Trade trade = point.getPretendTrade();
+                        double pretendTradePrice = trade.getPrice().doubleValue();
+                        if (pretendTradePrice > 0) {
+                            minY = Math.min(minY, pretendTradePrice);
+                            maxY = Math.max(maxY, pretendTradePrice);
+                        }
+                        
+                        // Create a new series for this single trade point
+                        XYChart.Series<Number, Number> tradeSeries = new XYChart.Series<>();
+                        tradeSeries.setName(trade.getMakerSide()); // Set name to identify the trade type
+                        XYChart.Data<Number, Number> tradePoint = new XYChart.Data<>(seq, pretendTradePrice);
+                        tradeSeries.getData().add(tradePoint);
+                        
+                        // Only add the series if it's not already in the chart
+                        boolean seriesExists = false;
+                        for (XYChart.Series<Number, Number> existingSeries : lineChart.getData()) {
+                            if (existingSeries.getData().size() == 1 && 
+                                existingSeries.getData().get(0).getXValue().equals(seq) &&
+                                existingSeries.getData().get(0).getYValue().equals(pretendTradePrice)) {
+                                seriesExists = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!seriesExists) {
+                            lineChart.getData().add(tradeSeries);
+                            
+                            // Style the trade point based on trade type
+                            String tradeType = trade.getMakerSide();
+                            String tradeColor = tradeType.toLowerCase().contains("buy") ? "#00AA00" : "#AA0000";
+                            
+                            // Add styling immediately instead of in a separate runLater
+                            if (tradePoint.getNode() != null) {
+                                tradePoint.getNode().setStyle("-fx-background-color: " + tradeColor + ", white; -fx-background-radius: 8px; -fx-padding: 8px;");
+                                
+                                // Add tooltip to the trade point
+                                StringBuilder tooltipText = new StringBuilder();
+                                tooltipText.append("Trade Type: ").append(tradeType.toUpperCase()).append("\n");
+                                tooltipText.append("Price: ").append(String.format("%.2f", trade.getPrice())).append("\n");
+                                tooltipText.append("Amount: ").append(String.format("%.4f", trade.getAmount())).append("\n");
+                                tooltipText.append("Time: ").append(dateFormatter.format(new Date(point.getTimestamp()))).append("\n");
+                                
+                                Tooltip tooltip = new Tooltip(tooltipText.toString());
+                                Tooltip.install(tradePoint.getNode(), tooltip);
+                            } else {
+                                // If node is not available yet, use a separate runLater with a delay
+                                final XYChart.Data<Number, Number> finalTradePoint = tradePoint;
+                                final XYChart.Series<Number, Number> finalTradeSeries = tradeSeries;
+                                final String finalTradeColor = tradeColor;
+                                final String finalTradeType = tradeType;
+                                final long finalTimestamp = point.getTimestamp();
+                                
+                                // Use a separate runLater for styling with a small delay to ensure node is created
+                                Platform.runLater(() -> {
+                                    try {
+                                        Thread.sleep(50); // Small delay to ensure node is created
+                                    } catch (InterruptedException e) {
+                                        // Ignore
+                                    }
+                                    
+                                    if (finalTradePoint.getNode() != null) {
+                                        finalTradePoint.getNode().setStyle("-fx-background-color: " + finalTradeColor + ", white; -fx-background-radius: 8px; -fx-padding: 8px;");
+                                        
+                                        // Add tooltip to the trade point
+                                        StringBuilder tooltipText = new StringBuilder();
+                                        tooltipText.append("Trade Type: ").append(finalTradeType.toUpperCase()).append("\n");
+                                        tooltipText.append("Price: ").append(String.format("%.2f", trade.getPrice())).append("\n");
+                                        tooltipText.append("Amount: ").append(String.format("%.4f", trade.getAmount())).append("\n");
+                                        tooltipText.append("Time: ").append(dateFormatter.format(new Date(finalTimestamp))).append("\n");
+                                        
+                                        Tooltip tooltip = new Tooltip(tooltipText.toString());
+                                        Tooltip.install(finalTradePoint.getNode(), tooltip);
+                                    }
+                                    
+                                    // Style the series to have no line
+                                    if (finalTradeSeries.getNode() != null) {
+                                        finalTradeSeries.getNode().setStyle("-fx-stroke: transparent;");
+                                    }
+                                });
+                            }
+                            
+                            // Style the series to have no line
+                            if (tradeSeries.getNode() != null) {
+                                tradeSeries.getNode().setStyle("-fx-stroke: transparent;");
+                            }
+                        }
+                    }
+                    
+                    // Add data to the amount chart (using the same sequence numbers as the price chart)
+                    String seqStr = String.valueOf(seq);
+                    amountCategories.add(seqStr);
+                    
+                    double tradeAmount = point.getTradeAmount();
+                    if (tradeAmount > 0) {
+                        tradeAmountData.add(new XYChart.Data<>(seqStr, tradeAmount));
+                        maxAmount = Math.max(maxAmount, tradeAmount);
+                    }
+                    
+                    double askAmount = point.getAvgAskAmount();
+                    if (askAmount > 0) {
+                        avgAskAmountData.add(new XYChart.Data<>(seqStr, askAmount));
+                        maxAmount = Math.max(maxAmount, askAmount);
+                    }
+                    
+                    double bidAmount = point.getAvgBidAmount();
+                    if (bidAmount > 0) {
+                        avgBidAmountData.add(new XYChart.Data<>(seqStr, bidAmount));
+                        maxAmount = Math.max(maxAmount, bidAmount);
+                    }
+                }
+                
+                // Add all data points to the series at once for better performance
+                tradePriceSeries.getData().addAll(tradePriceData);
+                avgAskPriceSeries.getData().addAll(avgAskPriceData);
+                avgBidPriceSeries.getData().addAll(avgBidPriceData);
+                
+                // Add categories to amount chart
+                amountXAxis.getCategories().addAll(amountCategories);
+                
+                // Add amount data to series
+                tradeAmountSeries.getData().addAll(tradeAmountData);
+                avgAskAmountSeries.getData().addAll(avgAskAmountData);
+                avgBidAmountSeries.getData().addAll(avgBidAmountData);
             
             // Add some padding to the Y-axis range (5%)
             double padding = (maxY - minY) * 0.05;
@@ -465,25 +729,115 @@ public class PerformanceWindow extends Application {
             if (minY != Double.MAX_VALUE && maxY != Double.MIN_VALUE) {
                 yAxis.setLowerBound(minY - padding);
                 yAxis.setUpperBound(maxY + padding);
-                System.out.println("Updated Y-axis range to: " + yAxis.getLowerBound() + " to " + yAxis.getUpperBound() + 
-                                  " based on visible data points from index " + startIndex + " to " + 
-                                  Math.min(startIndex + visiblePoints - 1, totalPoints - 1));
+                }
+                
+                // Set a reasonable range for the amount chart
+                if (maxAmount > 0) {
+                    amountYAxis.setLowerBound(0);
+                    amountYAxis.setUpperBound(maxAmount * 1.1); // Add 10% padding
             } else {
-                System.out.println("Could not find valid min/max Y values in visible range");
-            }
-            
-            // Update the amount chart categories - ensure it's synchronized with the price chart
-            updateVisibleAmountData(minSeq, maxSeq);
+                    amountYAxis.setLowerBound(0);
+                    amountYAxis.setUpperBound(1);
+                }
+                
+                // Update X-axis range
+                int minSeq = windowData.get(0).getSequence();
+                int maxSeq = windowData.get(windowData.size() - 1).getSequence();
+                xAxis.setLowerBound(minSeq);
+                xAxis.setUpperBound(maxSeq);
+                xAxis.setTickUnit(Math.max(1, (maxSeq - minSeq) / 10)); // Adjust tick unit for readability
+                
+                // Apply styles to the data points - do this in a separate runLater to avoid blocking the UI
+                Platform.runLater(this::applySeriesStyles);
             
             // Force a layout pass to ensure both charts are updated
-            Platform.runLater(() -> {
                 lineChart.layout();
                 amountChart.layout();
-            });
+                
+                // Update the trade history with all pretend trades in the window
+                updateTradeHistoryFromWindow(windowData);
+            } catch (Exception e) {
+                System.err.println("Error updating chart with window data: " + e.getMessage());
+                e.printStackTrace();
+            }
+        });
+    }
+    
+    /**
+     * Updates the trade history with all pretend trades in the window.
+     * 
+     * @param windowData The window of data to display
+     */
+    private void updateTradeHistoryFromWindow(List<PerformanceData> windowData) {
+        // Clear existing trade history
+        Platform.runLater(() -> {
+            // Keep only the header
+            while (tradeHistoryContainer.getChildren().size() > 1) {
+                tradeHistoryContainer.getChildren().remove(1);
+            }
             
-            System.out.println("Chart view updated with X-axis range: " + xAxis.getLowerBound() + " to " + xAxis.getUpperBound() + 
-                              ", visible points: " + visiblePoints + " out of " + totalPoints + " total points");
-        }
+            // Add placeholder entries if no trades
+            boolean hasAnyTrades = false;
+            
+            // Process each data point in the window to find pretend trades
+            for (PerformanceData point : windowData) {
+                if (point.getPretendTrade() != null && point.getPretendTrade().getPrice() != null) {
+                    hasAnyTrades = true;
+                    com.ibbe.entity.Trade trade = point.getPretendTrade();
+                    
+                    String tradeType = trade.getMakerSide();
+                    BigDecimal price = trade.getPrice();
+                    BigDecimal amount = trade.getAmount();
+                    long timestamp = point.getTimestamp(); // Use data point timestamp
+                    
+                    // Format the trade information with timestamp
+                    String tradeInfo = String.format("[%s] %s at $%.2f for %.8f BTC (Seq: %d)", 
+                        tradeHistoryDateFormat.format(new Date(timestamp)),
+                        tradeType.toUpperCase(), price, amount, point.getSequence());
+                    
+                    // Create a label with the trade information
+                    Label tradeLabel = new Label(tradeInfo);
+                    tradeLabel.setFont(new Font("Arial", 12));
+                    tradeLabel.setMaxWidth(580); // Ensure it fits within the container
+                    
+                    // Set color based on trade type (green for buy, red for sell)
+                    String tradeColor = tradeType.toLowerCase().contains("buy") ? "#00AA00" : "#AA0000";
+                    tradeLabel.setStyle("-fx-text-fill: " + tradeColor + "; -fx-padding: 3px 0px; -fx-font-weight: bold;");
+                    
+                    // Add the label to the trade history container after the header
+                    tradeHistoryContainer.getChildren().add(1, tradeLabel); // Add after header for newest first
+                }
+            }
+            
+            // Add placeholder entries if no trades
+            if (!hasAnyTrades) {
+                Label placeholder1 = new Label("No trades yet");
+                placeholder1.setFont(new Font("Arial", 12));
+                placeholder1.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
+                
+                Label placeholder2 = new Label("Trades will appear here when executed");
+                placeholder2.setFont(new Font("Arial", 12));
+                placeholder2.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
+                
+                tradeHistoryContainer.getChildren().addAll(placeholder1, placeholder2);
+            }
+            
+            // Limit the number of trade history entries to prevent memory leaks
+            while (tradeHistoryContainer.getChildren().size() > MAX_TRADE_HISTORY + 1) { // +1 for the header
+                tradeHistoryContainer.getChildren().remove(tradeHistoryContainer.getChildren().size() - 1);
+            }
+            
+            // Ensure the trade history is visible
+            if (!tradeHistoryVisible) {
+                tradeHistoryVisible = true;
+                tradeHistoryScrollPane.setVisible(true);
+                tradeHistoryScrollPane.setManaged(true);
+                toggleTradeHistoryButton.setText("Hide Trade History");
+            }
+            
+            // Scroll to the top to show the newest trade
+            tradeHistoryScrollPane.setVvalue(0);
+        });
     }
     
     /**
@@ -528,7 +882,7 @@ public class PerformanceWindow extends Application {
             
             chartInitialized = true;
             
-            System.out.println("Charts initialized with empty series and Y-axis range: " + yAxis.getLowerBound() + " to " + yAxis.getUpperBound());
+            // System.out.println("Charts initialized with empty series and Y-axis range: " + yAxis.getLowerBound() + " to " + yAxis.getUpperBound());
         });
     }
     
@@ -551,6 +905,12 @@ public class PerformanceWindow extends Application {
             avgAskAmountSeries.getData().clear();
             avgBidAmountSeries.getData().clear();
             
+            // Remove any pretend trade series from the price chart
+            // Keep only the main series (trade price, ask price, bid price)
+            while (lineChart.getData().size() > 3) {
+                lineChart.getData().remove(3);
+            }
+            
             // Reset slider
             timeSlider.setValue(0.0);  // Start from the beginning
             
@@ -558,7 +918,36 @@ public class PerformanceWindow extends Application {
             liveMode.set(false);  // Start in historical mode to see data from the beginning
             liveButton.setText("Go Live");
             
-            System.out.println("All series cleared for new analysis");
+            // Reset balance and profit display - we'll get values from server
+            startingCurrencyBalance = null;
+            startingCoinBalance = null;
+            currentCurrencyBalance = BigDecimal.ZERO;
+            currentCoinBalance = BigDecimal.ZERO;
+            currentProfit = BigDecimal.ZERO;
+            
+            // Update the labels with initial values
+            balanceLabel.setText("Starting Balance: Waiting for server data...");
+            currentBalanceLabel.setText("Current Balance: Waiting for server data...");
+            profitLabel.setText("Profit: $0.00");
+            profitLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #000000;");
+            
+            // Reset trade history
+            tradeHistoryContainer.getChildren().clear();
+            Label tradeHistoryHeader = new Label("Trade History (newest first)");
+            tradeHistoryHeader.setFont(new Font("Arial", 14));
+            tradeHistoryHeader.setStyle("-fx-font-weight: bold;");
+            tradeHistoryContainer.getChildren().add(tradeHistoryHeader);
+            
+            // Add placeholder entries to ensure minimum height
+            Label placeholder1 = new Label("No trades yet");
+            placeholder1.setFont(new Font("Arial", 12));
+            placeholder1.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
+            
+            Label placeholder2 = new Label("Trades will appear here when executed");
+            placeholder2.setFont(new Font("Arial", 12));
+            placeholder2.setStyle("-fx-text-fill: #888888; -fx-padding: 3px 0px;");
+            
+            tradeHistoryContainer.getChildren().addAll(placeholder1, placeholder2);
         });
         
         // Reset chart initialization flag
@@ -579,10 +968,145 @@ public class PerformanceWindow extends Application {
     }
     
     /**
-     * Updates the status label.
+     * Updates the status label with a message.
+     * 
+     * @param message The message to display
+     * @param isError Whether the message is an error message
      */
-    public void updateStatus(String status) {
-        Platform.runLater(() -> statusLabel.setText("Status: " + status));
+    public void updateStatus(String message, boolean isError) {
+        Platform.runLater(() -> {
+            statusLabel.setText(message);
+            if (isError) {
+                statusLabel.setStyle("-fx-text-fill: red;");
+            } else {
+                statusLabel.setStyle("-fx-text-fill: black;");
+            }
+        });
+    }
+    
+    /**
+     * Updates the status label with a message.
+     * 
+     * @param message The message to display
+     */
+    public void updateStatus(String message) {
+        updateStatus(message, false);
+    }
+    
+    /**
+     * Updates the balance and profit display with the provided values.
+     * 
+     * @param currencyBalance The current currency balance
+     * @param coinBalance The current coin balance
+     * @param profit The current profit
+     */
+    private void updateBalanceAndProfit(BigDecimal currencyBalance, BigDecimal coinBalance, BigDecimal profit) {
+        if (currencyBalance == null || coinBalance == null || profit == null) {
+            System.err.println("Cannot update balances with null values");
+            return;
+        }
+        
+        Platform.runLater(() -> {
+            // If this is the first update, store the starting balances and initialize current balances
+            if (startingCurrencyBalance == null && startingCoinBalance == null) {
+                // Store the initial values as starting balances
+                startingCurrencyBalance = currencyBalance;
+                startingCoinBalance = coinBalance;
+                
+                // Update the labels with the initial values
+                balanceLabel.setText(String.format("Starting Balance: $%.2f | %.8f BTC", 
+                    startingCurrencyBalance, startingCoinBalance));
+            }
+            
+            // Always update current balance and profit
+            currentCurrencyBalance = currencyBalance;
+            currentCoinBalance = coinBalance;
+            currentProfit = profit;
+            
+            // Update the current balance label
+            currentBalanceLabel.setText(String.format("Current Balance: $%.2f | %.8f BTC", 
+                currentCurrencyBalance, currentCoinBalance));
+            
+            // Set color based on profit (green for positive, red for negative)
+            String profitColor = currentProfit.compareTo(BigDecimal.ZERO) >= 0 ? "#00AA00" : "#AA0000";
+            profitLabel.setText(String.format("Profit: $%.2f", currentProfit));
+            profitLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + profitColor + ";");
+        });
+    }
+    
+    /**
+     * Called when new data is available from the performance client.
+     * This method will update the chart view with the current slider position.
+     */
+    public void onNewDataAvailable() {
+        // Update the chart view with the current slider position
+        updateChartView(timeSlider.getValue());
+        
+        // Update the status label with the total records received
+        int totalRecords = performanceClient.getTotalRecordsReceived();
+        int datasetSize = performanceClient.getDatasetSize();
+        updateStatus(String.format("Received %,d records (keeping %,d in memory)", totalRecords, datasetSize));
+    }
+    
+    /**
+     * Updates the balance display after a trade is executed.
+     * This ensures the current balance is properly updated based on the trade.
+     * 
+     * @param trade The trade that was executed
+     */
+    private void updateBalanceDisplayAfterTrade(com.ibbe.entity.Trade trade) {
+        if (trade == null || trade.getPrice() == null || trade.getAmount() == null) {
+            System.err.println("Cannot update balance display with null trade data");
+            return;
+        }
+        
+        // Calculate the trade value
+        BigDecimal tradeValue = trade.getPrice().multiply(trade.getAmount());
+        
+        // Update balances based on trade type
+        if (trade.getMakerSide().toLowerCase().contains("buy")) {
+            // For a buy trade, decrease currency balance and increase coin balance
+            currentCurrencyBalance = currentCurrencyBalance.subtract(tradeValue);
+            currentCoinBalance = currentCoinBalance.add(trade.getAmount());
+        } else if (trade.getMakerSide().toLowerCase().contains("sell")) {
+            // For a sell trade, increase currency balance and decrease coin balance
+            currentCurrencyBalance = currentCurrencyBalance.add(tradeValue);
+            currentCoinBalance = currentCoinBalance.subtract(trade.getAmount());
+        }
+        
+        // Calculate profit
+        BigDecimal currentAccountValue = currentCoinBalance.multiply(trade.getPrice()).add(currentCurrencyBalance);
+        BigDecimal startingAccountValue = startingCoinBalance.multiply(trade.getPrice()).add(startingCurrencyBalance);
+        currentProfit = currentAccountValue.subtract(startingAccountValue);
+        
+        // Update the labels
+        Platform.runLater(() -> {
+            currentBalanceLabel.setText(String.format("Current Balance: $%.2f | %.8f BTC", 
+                currentCurrencyBalance, currentCoinBalance));
+            
+            // Set color based on profit (green for positive, red for negative)
+            String profitColor = currentProfit.compareTo(BigDecimal.ZERO) >= 0 ? "#00AA00" : "#AA0000";
+            profitLabel.setText(String.format("Profit: $%.2f", currentProfit));
+            profitLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + profitColor + ";");
+        });
+    }
+    
+    /**
+     * Adds a data point to the chart (overloaded method for backward compatibility).
+     */
+    public void addDataPoint(
+            BigDecimal tradePrice, 
+            BigDecimal tradeAmount, 
+            BigDecimal avgAskPrice, 
+            BigDecimal avgAskAmount, 
+            BigDecimal avgBidPrice, 
+            BigDecimal avgBidAmount,
+            long timestamp,
+            boolean amountMissing) {
+        
+        // Call the full version with null values for the new parameters
+        addDataPoint(tradePrice, tradeAmount, avgAskPrice, avgAskAmount, avgBidPrice, avgBidAmount,
+                    timestamp, amountMissing, null, null, null, null);
     }
     
     /**
@@ -596,7 +1120,17 @@ public class PerformanceWindow extends Application {
             BigDecimal avgBidPrice, 
             BigDecimal avgBidAmount,
             long timestamp,
-            boolean amountMissing) {
+            boolean amountMissing,
+            com.ibbe.entity.Trade pretendTrade,
+            BigDecimal currencyBalance,
+            BigDecimal coinBalance,
+            BigDecimal profit) {
+        
+        // Skip data points with null trade price or amount
+        if (tradePrice == null || tradeAmount == null) {
+            System.err.println("Skipping data point with null trade price or amount");
+            return;
+        }
         
         // Create a new data point
         int seq = sequenceNumber.getAndIncrement();
@@ -609,15 +1143,51 @@ public class PerformanceWindow extends Application {
         dataPoint.setAvgBidPrice(avgBidPrice);
         dataPoint.setAvgBidAmount(avgBidAmount);
         dataPoint.setTimestamp(timestamp);
-        dataPoint.setAmountMissing(amountMissing);
         
+        // Add pretend trade if present
+        if (pretendTrade != null) {
+            dataPoint.setPretendTrade(pretendTrade);
+            // Update balance display based on the trade
+            updateBalanceDisplayAfterTrade(pretendTrade);
+        }
+        
+        // Update balance and profit display if provided
+        // Only update starting balance on the first data point
+        if (currencyBalance != null && coinBalance != null && profit != null) {
+            if (dataPoints.isEmpty()) {
+                // First data point - set starting balances
+                updateBalanceAndProfit(currencyBalance, coinBalance, profit);
+            } else if (pretendTrade != null) {
+                // Only update current balance and profit when trades occur
+                // Already handled by updateBalanceDisplayAfterTrade above
+            } else {
+                // Regular update without changing starting balance
+                currentCurrencyBalance = currencyBalance;
+                currentCoinBalance = coinBalance;
+                currentProfit = profit;
+                
+                Platform.runLater(() -> {
+                    // Update the current balance label
+                    currentBalanceLabel.setText(String.format("Current Balance: $%.2f | %.8f BTC", 
+                        currentCurrencyBalance, currentCoinBalance));
+                    
+                    // Set color based on profit
+                    String profitColor = currentProfit.compareTo(BigDecimal.ZERO) >= 0 ? "#00AA00" : "#AA0000";
+                    profitLabel.setText(String.format("Profit: $%.2f", currentProfit));
+                    profitLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + profitColor + ";");
+                });
+            }
+        }
+
         // Add to the data points list
         boolean updateCharts = false;
         boolean firstBatch = false;
+        boolean needTrimSeries = false;
         synchronized (dataPoints) {
             dataPoints.add(dataPoint);
             
             // Limit the number of data points to avoid memory issues
+            needTrimSeries = dataPoints.size() > MAX_DATA_POINTS;
             while (dataPoints.size() > MAX_DATA_POINTS) {
                 dataPoints.removeFirst();
             }
@@ -634,12 +1204,38 @@ public class PerformanceWindow extends Application {
         // This ensures all data is in the series when we need to display it
         final boolean shouldUpdateCharts = updateCharts;
         final boolean isFirstBatch = firstBatch;
+        final boolean shouldTrimSeries = needTrimSeries;
+        
+        // Batch UI updates to reduce memory pressure
         Platform.runLater(() -> {
             if (!chartInitialized) {
                 initializeChart();
             }
             
             try {
+                // Trim series data if we've exceeded the maximum number of data points
+                if (shouldTrimSeries) {
+                    // Keep only the most recent MAX_DATA_POINTS in each series
+                    while (tradePriceSeries.getData().size() > MAX_DATA_POINTS) {
+                        tradePriceSeries.getData().remove(0);
+                    }
+                    while (avgAskPriceSeries.getData().size() > MAX_DATA_POINTS) {
+                        avgAskPriceSeries.getData().remove(0);
+                    }
+                    while (avgBidPriceSeries.getData().size() > MAX_DATA_POINTS) {
+                        avgBidPriceSeries.getData().remove(0);
+                    }
+                    
+                    // Also trim any additional series (pretend trades)
+                    while (lineChart.getData().size() > 3) {
+                        if (lineChart.getData().get(3).getData().size() > MAX_DATA_POINTS) {
+                            lineChart.getData().remove(3);
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                
                 // Add data to the price series
                 XYChart.Data<Number, Number> tradeData = new XYChart.Data<>(seq, dataPoint.getTradePrice());
                 XYChart.Data<Number, Number> askData = new XYChart.Data<>(seq, dataPoint.getAvgAskPrice());
@@ -649,6 +1245,12 @@ public class PerformanceWindow extends Application {
                 avgAskPriceSeries.getData().add(askData);
                 avgBidPriceSeries.getData().add(bidData);
                 
+                // Apply styles to the new data points - only if they're visible
+                // This reduces the number of DOM nodes created
+                boolean isVisible = liveMode.get() || 
+                    (seq >= xAxis.getLowerBound() && seq <= xAxis.getUpperBound());
+                
+                if (isVisible) {
                 // Apply styles to the new data points
                 if (tradeData.getNode() != null) {
                     tradeData.getNode().setStyle("-fx-background-color: #ff0000, white; -fx-background-radius: 5px; -fx-padding: 5px;");
@@ -662,17 +1264,13 @@ public class PerformanceWindow extends Application {
                     bidData.getNode().setStyle("-fx-background-color: #0000ff, white; -fx-background-radius: 5px; -fx-padding: 5px;");
                 }
                 
-                // Add tooltips to the data points
+                    // Add tooltips to the data points - only for visible points
+                    // and only every 5th point to reduce memory usage
+                    if (seq % 5 == 0) {
                 addTooltipToLastDataPoint(tradePriceSeries, dataPoint);
                 addTooltipToLastDataPoint(avgAskPriceSeries, dataPoint);
                 addTooltipToLastDataPoint(avgBidPriceSeries, dataPoint);
-                
-                // Log every 100th point to avoid flooding the console
-                if (seq % 100 == 0) {
-                    System.out.println("Added data point to series - Trade: " + dataPoint.getTradePrice() + 
-                                      ", Ask: " + dataPoint.getAvgAskPrice() + 
-                                      ", Bid: " + dataPoint.getAvgBidPrice() + 
-                                      ", Sequence: " + seq);
+                    }
                 }
                 
                 // If we've received a batch of data or we're updating the charts, update the view
@@ -708,19 +1306,13 @@ public class PerformanceWindow extends Application {
             
             if (series == tradePriceSeries) {
                 tooltipText.append("Trade Price: ").append(String.format("%.2f", dataPoint.getTradePrice())).append("\n");
-                if (!dataPoint.isAmountMissing()) {
-                    tooltipText.append("Trade Amount: ").append(String.format("%.4f", dataPoint.getTradeAmount()));
-                }
+                tooltipText.append("Trade Amount: ").append(String.format("%.4f", dataPoint.getTradeAmount()));
             } else if (series == avgAskPriceSeries) {
                 tooltipText.append("Avg Ask Price: ").append(String.format("%.2f", dataPoint.getAvgAskPrice())).append("\n");
-                if (!dataPoint.isAmountMissing()) {
-                    tooltipText.append("Avg Ask Amount: ").append(String.format("%.4f", dataPoint.getAvgAskAmount()));
-                }
+                tooltipText.append("Avg Ask Amount: ").append(String.format("%.4f", dataPoint.getAvgAskAmount()));
             } else if (series == avgBidPriceSeries) {
                 tooltipText.append("Avg Bid Price: ").append(String.format("%.2f", dataPoint.getAvgBidPrice())).append("\n");
-                if (!dataPoint.isAmountMissing()) {
-                    tooltipText.append("Avg Bid Amount: ").append(String.format("%.4f", dataPoint.getAvgBidAmount()));
-                }
+                tooltipText.append("Avg Bid Amount: ").append(String.format("%.4f", dataPoint.getAvgBidAmount()));
             }
             
             // Create and install the tooltip
@@ -737,8 +1329,6 @@ public class PerformanceWindow extends Application {
      */
     private void updateVisibleAmountData(int minSeq, int maxSeq) {
         try {
-            System.out.println("Updating amount chart to match sequence range: " + minSeq + " to " + maxSeq);
-            
             // Clear existing categories
             amountXAxis.getCategories().clear();
             
@@ -747,7 +1337,8 @@ public class PerformanceWindow extends Application {
             
             // Add categories for the visible range - use the same sequence numbers as the price chart
             // This ensures both charts show the same data points
-            for (int i = minSeq; i <= maxSeq; i++) {
+            // Only add every other sequence number to reduce memory usage
+            for (int i = minSeq; i <= maxSeq; i += 2) {
                 visibleSequences.add(String.valueOf(i));
             }
             
@@ -761,10 +1352,13 @@ public class PerformanceWindow extends Application {
             avgBidAmountSeries.getData().clear();
             
             // Now add only the data points that match the visible sequence range
+            // Use a single runLater for all tooltip installations to reduce overhead
+            final List<Runnable> tooltipTasks = new ArrayList<>();
+            
             synchronized (dataPoints) {
                 for (PerformanceData point : dataPoints) {
                     int seq = point.getSequence();
-                    if (seq >= minSeq && seq <= maxSeq && !point.isAmountMissing()) {
+                    if (seq >= minSeq && seq <= maxSeq && seq % 2 == 0) { // Only add every other point
                         String seqStr = String.valueOf(seq);
                         
                         // Add trade amount data
@@ -773,9 +1367,9 @@ public class PerformanceWindow extends Application {
                             final XYChart.Data<String, Number> tradeAmountData = new XYChart.Data<>(seqStr, tradeAmount);
                             tradeAmountSeries.getData().add(tradeAmountData);
                             
-                            // Add tooltip in a separate runLater to ensure node is created
+                            // Add tooltip task
                             final PerformanceData tooltipPoint = point;
-                            Platform.runLater(() -> {
+                            tooltipTasks.add(() -> {
                                 if (tradeAmountData.getNode() != null) {
                                     addTooltipToBarDataPoint(tradeAmountData, tooltipPoint, "Trade");
                                 }
@@ -788,9 +1382,9 @@ public class PerformanceWindow extends Application {
                             final XYChart.Data<String, Number> askAmountData = new XYChart.Data<>(seqStr, askAmount);
                             avgAskAmountSeries.getData().add(askAmountData);
                             
-                            // Add tooltip in a separate runLater to ensure node is created
+                            // Add tooltip task
                             final PerformanceData tooltipPoint = point;
-                            Platform.runLater(() -> {
+                            tooltipTasks.add(() -> {
                                 if (askAmountData.getNode() != null) {
                                     addTooltipToBarDataPoint(askAmountData, tooltipPoint, "Ask");
                                 }
@@ -803,9 +1397,9 @@ public class PerformanceWindow extends Application {
                             final XYChart.Data<String, Number> bidAmountData = new XYChart.Data<>(seqStr, bidAmount);
                             avgBidAmountSeries.getData().add(bidAmountData);
                             
-                            // Add tooltip in a separate runLater to ensure node is created
+                            // Add tooltip task
                             final PerformanceData tooltipPoint = point;
-                            Platform.runLater(() -> {
+                            tooltipTasks.add(() -> {
                                 if (bidAmountData.getNode() != null) {
                                     addTooltipToBarDataPoint(bidAmountData, tooltipPoint, "Bid");
                                 }
@@ -815,8 +1409,9 @@ public class PerformanceWindow extends Application {
                 }
             }
             
-            // Apply styles to the new data points
+            // Apply styles to the new data points and install tooltips in a single runLater
             Platform.runLater(() -> {
+                // Apply styles to the new data points
                 for (XYChart.Data<String, Number> data : tradeAmountSeries.getData()) {
                     if (data.getNode() != null) {
                         data.getNode().setStyle("-fx-bar-fill: #ff0000;");
@@ -832,6 +1427,13 @@ public class PerformanceWindow extends Application {
                 for (XYChart.Data<String, Number> data : avgBidAmountSeries.getData()) {
                     if (data.getNode() != null) {
                         data.getNode().setStyle("-fx-bar-fill: #0000ff;");
+                    }
+                }
+                
+                // Install tooltips - but only for a subset of points to reduce memory usage
+                for (int i = 0; i < tooltipTasks.size(); i += 5) { // Only add tooltips for every 5th point
+                    if (i < tooltipTasks.size()) {
+                        tooltipTasks.get(i).run();
                     }
                 }
             });
@@ -861,16 +1463,10 @@ public class PerformanceWindow extends Application {
             if (maxAmount > 0) {
                 amountYAxis.setLowerBound(0);
                 amountYAxis.setUpperBound(maxAmount * 1.1); // Add 10% padding
-                System.out.println("Updated amount Y-axis range to: 0 to " + amountYAxis.getUpperBound());
             } else {
                 amountYAxis.setLowerBound(0);
                 amountYAxis.setUpperBound(1);
-                System.out.println("Reset amount Y-axis range to default: 0 to 1");
             }
-            
-            System.out.println("Amount chart updated with " + amountXAxis.getCategories().size() + 
-                              " categories, from " + minSeq + " to " + maxSeq +
-                              " and " + tradeAmountSeries.getData().size() + " trade amount data points");
         } catch (Exception e) {
             System.err.println("Error updating amount chart: " + e.getMessage());
             e.printStackTrace();
@@ -908,62 +1504,98 @@ public class PerformanceWindow extends Application {
     
     /**
      * Apply custom styles to the chart series
+     * Optimized for large datasets by only styling visible nodes
      */
     private void applySeriesStyles() {
         // Apply custom colors to the series
-        Platform.runLater(() -> {
             // Apply styles to price chart series
-            if (!tradePriceSeries.getData().isEmpty()) {
+        if (tradePriceSeries.getNode() != null) {
                 tradePriceSeries.getNode().setStyle("-fx-stroke: #ff0000; -fx-stroke-width: 2px;");
-                for (XYChart.Data<Number, Number> data : tradePriceSeries.getData()) {
-                    if (data.getNode() != null) {
-                        data.getNode().setStyle("-fx-background-color: #ff0000, white; -fx-background-radius: 5px; -fx-padding: 5px;");
-                    }
-                }
             }
             
-            if (!avgAskPriceSeries.getData().isEmpty()) {
+        if (avgAskPriceSeries.getNode() != null) {
                 avgAskPriceSeries.getNode().setStyle("-fx-stroke: #00ff00; -fx-stroke-width: 2px;");
-                for (XYChart.Data<Number, Number> data : avgAskPriceSeries.getData()) {
-                    if (data.getNode() != null) {
-                        data.getNode().setStyle("-fx-background-color: #00ff00, white; -fx-background-radius: 5px; -fx-padding: 5px;");
-                    }
-                }
             }
             
-            if (!avgBidPriceSeries.getData().isEmpty()) {
+        if (avgBidPriceSeries.getNode() != null) {
                 avgBidPriceSeries.getNode().setStyle("-fx-stroke: #0000ff; -fx-stroke-width: 2px;");
-                for (XYChart.Data<Number, Number> data : avgBidPriceSeries.getData()) {
-                    if (data.getNode() != null) {
-                        data.getNode().setStyle("-fx-background-color: #0000ff, white; -fx-background-radius: 5px; -fx-padding: 5px;");
-                    }
-                }
-            }
-            
-            // Apply styles to amount chart series
-            if (!tradeAmountSeries.getData().isEmpty()) {
+        }
+        
+        // For large datasets, we'll only style the series lines, not individual points
+        // This significantly improves performance with large datasets
+        
+        // Apply styles to amount chart series - only style the series, not individual bars
                 for (XYChart.Data<String, Number> data : tradeAmountSeries.getData()) {
                     if (data.getNode() != null) {
                         data.getNode().setStyle("-fx-bar-fill: #ff0000;");
-                    }
                 }
             }
             
-            if (!avgAskAmountSeries.getData().isEmpty()) {
                 for (XYChart.Data<String, Number> data : avgAskAmountSeries.getData()) {
                     if (data.getNode() != null) {
                         data.getNode().setStyle("-fx-bar-fill: #00ff00;");
-                    }
                 }
             }
             
-            if (!avgBidAmountSeries.getData().isEmpty()) {
                 for (XYChart.Data<String, Number> data : avgBidAmountSeries.getData()) {
                     if (data.getNode() != null) {
                         data.getNode().setStyle("-fx-bar-fill: #0000ff;");
                     }
                 }
             }
+    
+    /**
+     * Clean up resources when the application is closed.
+     */
+    @Override
+    public void stop() {
+        // Cancel any pending timers
+        if (resizeTimer != null) {
+            resizeTimer.cancel();
+            resizeTimer = null;
+        }
+        
+        // Clear data structures to help with garbage collection
+        synchronized (dataPoints) {
+            dataPoints.clear();
+        }
+        
+        // Clear chart data
+        Platform.runLater(() -> {
+            tradePriceSeries.getData().clear();
+            avgAskPriceSeries.getData().clear();
+            avgBidPriceSeries.getData().clear();
+            tradeAmountSeries.getData().clear();
+            avgAskAmountSeries.getData().clear();
+            avgBidAmountSeries.getData().clear();
+            
+            // Remove all series from charts
+            lineChart.getData().clear();
+            amountChart.getData().clear();
+            
+            // Clear trade history
+            tradeHistoryContainer.getChildren().clear();
         });
+        
+        // Disconnect from server
+        if (performanceClient != null) {
+            performanceClient.disconnect();
+        }
+        
+        // Suggest garbage collection
+        System.gc();
+    }
+
+    /**
+     * Updates the balance display with the latest values.
+     * This method is called from the PerformanceAnalysisClient.
+     * 
+     * @param currencyBalance The current currency balance
+     * @param coinBalance The current coin balance
+     * @param profit The current profit
+     */
+    public void updateBalanceDisplay(BigDecimal currencyBalance, BigDecimal coinBalance, BigDecimal profit) {
+        // Call the private method to update the balance and profit
+        updateBalanceAndProfit(currencyBalance, coinBalance, profit);
     }
 } 

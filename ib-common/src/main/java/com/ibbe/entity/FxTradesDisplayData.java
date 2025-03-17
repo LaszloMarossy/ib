@@ -30,10 +30,10 @@ public class FxTradesDisplayData {
       @JsonProperty("coinBalance") BigDecimal coinBalance,
       @JsonProperty("latestPrice") BigDecimal latestPrice,
       @JsonProperty("recentTrades") ArrayList<Trade> recentTrades) {
-    this.currencyBalance = currencyBalance;
-    this.coinBalance = coinBalance;
-    this.latestPrice = latestPrice;
-    this.recentTrades = recentTrades;
+    this.currencyBalance = currencyBalance != null ? currencyBalance : BigDecimal.ZERO;
+    this.coinBalance = coinBalance != null ? coinBalance : BigDecimal.ZERO;
+    this.latestPrice = latestPrice != null ? latestPrice : BigDecimal.ZERO;
+    this.recentTrades = recentTrades != null ? recentTrades : new ArrayList<>();
     // derives from coin an currency balance..
     this.startingAccountValue = calculateAccountValue();
     this.accountValue = startingAccountValue;
@@ -45,9 +45,17 @@ public class FxTradesDisplayData {
   }
 
   public void addRecentTradeWs(Trade recentTrade) {
-    recentTrades.addLast(recentTrade);
+    if (recentTrade == null) {
+      return;
+    }
+    
+    if (recentTrades == null) {
+      recentTrades = new ArrayList<>();
+    }
+    
+    recentTrades.add(recentTrade);
     if (recentTrades.size() > Integer.parseInt(PropertiesUtil.getProperty("displaydata.numberoftrades"))) {
-      recentTrades.removeFirst();
+      recentTrades.remove(0);
     }
   }
 
@@ -75,16 +83,25 @@ public class FxTradesDisplayData {
 
   public void setLatestPrice(BigDecimal latestPrice) {
     this.latestPrice = latestPrice;
-    this.profit = calculateProfit();
+    // Don't recalculate profit when only the price changes
+    // Profit should only change when balances change (i.e., when trades occur)
+    // this.profit = calculateProfit();
   }
 
   public BigDecimal calculateAccountValue() {
+    if (coinBalance == null || latestPrice == null || currencyBalance == null) {
+      return BigDecimal.ZERO;
+    }
     accountValue = coinBalance.multiply(latestPrice).add(currencyBalance).setScale(2, RoundingMode.DOWN);
     return accountValue;
   }
 
   public BigDecimal calculateProfit() {
-    return calculateAccountValue().subtract(startingAccountValue).setScale(2, RoundingMode.DOWN);
+    BigDecimal currentValue = calculateAccountValue();
+    if (startingAccountValue == null) {
+      return BigDecimal.ZERO;
+    }
+    return currentValue.subtract(startingAccountValue).setScale(2, RoundingMode.DOWN);
   }
 
   public BigDecimal getStartingAccountValue() {

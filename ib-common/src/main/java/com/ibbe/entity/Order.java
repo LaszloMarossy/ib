@@ -15,8 +15,8 @@ public class Order {
                @JsonProperty("amount") BigDecimal amount,
                @JsonProperty("oid") String oid) {
     this.book = book;
-    this.p = price;
-    this.a = amount;
+    this.p = price != null ? price : BigDecimal.ZERO;
+    this.a = amount != null ? amount : BigDecimal.ZERO;
     this.oid = oid;
   }
 

@@ -1,6 +1,9 @@
 package com.ibbe.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.ibbe.entity.Order;
+import com.ibbe.entity.OrderBookPayload;
 import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeWs;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -17,6 +20,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.time.ZoneOffset;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -242,7 +248,9 @@ public class TradesConsumer {
                     ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
                     
                     if (records.count() > 0) {
-                        logger.info("Received {} records", records.count());
+                        logger.debug("Received {} records", records.count());
+
+                        Trade previousTrade = null;
                         
                         // going through the messages in a loop
                         for (ConsumerRecord<String, String> record : records) {
@@ -251,10 +259,28 @@ public class TradesConsumer {
                             
                             totalMessages++;
                             Trade trade = unpackTrade(record);
+                            // there are some bad record where the price is likely set in pesos, not dollars - we should
+                            // skip processing those!
+                            if (previousTrade != null && previousTrade.getObp() != null && trade != null && trade.getObp() != null) {
+                                // if the current trade's ask price is more than 3 times the previous trade's ask price,
+                                // then must have a contaminated kafka record that is in pesos - so skip processing this
+                                if (previousTrade.getObp().getAsks()[0].getP().multiply(BigDecimal.valueOf(3)).compareTo(
+                                    trade.getObp().getAsks()[0].getP()) < 0) {
+                                    break;
+                                }
+                            }
                             
                             // Notify message handler if registered
                             if (messageHandler != null && trade != null) {
+                                // Ensure OrderBookPayload is not null to prevent NullPointerException
+                                if (trade.getObp() == null) {
+                                    logger.warn("Trade has null OrderBookPayload, creating empty one");
+                                    trade.setObp(new OrderBookPayload(new Order[0], new Order[0], null, 0));
+                                }
+                                
                                 boolean continueProcessing = messageHandler.handleMessage(trade);
+                                // set the current trade as the previous trade
+                                previousTrade = trade;
                                 if (!continueProcessing) {
                                     logger.info("Message handler requested to stop processing");
                                     running.set(false);
@@ -262,6 +288,8 @@ public class TradesConsumer {
                                 }
                             }
                         }
+                    } else {
+                        logger.debug("Message does not contain orderbook payload");
                     }
                 } catch (WakeupException e) {
                     // Ignore exception if closing
@@ -329,12 +357,13 @@ public class TradesConsumer {
             String value = record.value();
             
             // Log basic record info
-            logger.info("Processing record from {}-{} at offset {} with key: {}", 
-                    record.topic(), record.partition(), record.offset(), key);
+            // logger.info("Processing record from {}-{} at offset {} with key: {}", 
+            //         record.topic(), record.partition(), record.offset(), key);
             
-            // Skip test messages
-            if ("dummy-key".equals(key) || "testkey".equals(key) || "heartbeat".equals(key)) {
-                logger.info("Skipping test/heartbeat message with key: {}", key);
+            // Check if it's a test/heartbeat message
+            if (key != null && key.startsWith("test")) {
+                // Change from INFO to DEBUG to reduce log verbosity
+                logger.debug("Skipping test/heartbeat message with key: {}", key);
                 return null;
             }
             
@@ -345,27 +374,87 @@ public class TradesConsumer {
                     // Extract the orderbook payload from the JSON
                     if (value.contains("\"obp\"")) {
                         // Log the first part of the JSON for debugging
-                        logger.info("Processing JSON message: {}", value.length() > 100 ? value.substring(0, 100) + "..." : value);
+                        // logger.info("Processing JSON message: {}", value.length() > 100 ? value.substring(0, 100) + "..." : value);
                         
-                        // Directly deserialize to TradeWs
-                        TradeWs tradeWs = objectMapper.readValue(value, TradeWs.class);
-                        
-                        if (tradeWs != null) {
-                            // Log trade details
-                            logger.info("Processed Trade ID: {} with price: {} and amount: {}", 
-                                    tradeWs.getTid(), 
-                                    tradeWs.getPrice(),
-                                    tradeWs.getAmount());
+                        try {
+                            // Directly deserialize to TradeWs
+                            TradeWs tradeWs = objectMapper.readValue(value, TradeWs.class);
                             
-                            return tradeWs;
-                        } else {
-                            logger.warn("Deserialized TradeWs is null");
+                            if (tradeWs != null) {
+                                // Validate essential fields
+                                if (tradeWs.getTid() == null) {
+                                    logger.warn("Trade ID is null, generating a placeholder ID");
+                                    tradeWs.setTid(System.currentTimeMillis()); // Use current time as fallback ID
+                                }
+                                
+                                if (tradeWs.getPrice() == null) {
+                                    logger.warn("Trade price is null, skipping this trade");
+                                    return null;
+                                }
+                                
+                                // Log trade details
+                                // logger.info("Processed Trade ID: {} with price: {} and amount: {}", 
+                                //         tradeWs.getTid(), 
+                                //         tradeWs.getPrice(),
+                                //         tradeWs.getAmount());
+                                
+                                return tradeWs;
+                            } else {
+                                logger.warn("Deserialized TradeWs is null");
+                            }
+                        } catch (Exception e) {
+                            logger.error("Error deserializing trade: {}", e.getMessage(), e);
+                            
+                            // Try to extract essential fields manually as a fallback
+                            try {
+                                JsonNode rootNode = objectMapper.readTree(value);
+                                
+                                // Extract essential fields
+                                Long tid = rootNode.has("tid") ? rootNode.get("tid").asLong() : System.currentTimeMillis();
+                                BigDecimal price = rootNode.has("price") ? new BigDecimal(rootNode.get("price").asText()) : null;
+                                BigDecimal amount = rootNode.has("amount") ? new BigDecimal(rootNode.get("amount").asText()) : null;
+                                String makerSide = rootNode.has("makerSide") ? rootNode.get("makerSide").asText() : "buy";
+                                String createdAt = rootNode.has("createdAt") ? rootNode.get("createdAt").asText() : 
+                                                  ZonedDateTime.now(ZoneOffset.UTC).toString();
+                                
+                                // Skip if price is null
+                                if (price == null) {
+                                    logger.warn("Trade price is null in manual extraction, skipping this trade");
+                                    return null;
+                                }
+                                
+                                // Create trade manually
+                                Trade trade = Trade.builder()
+                                    .tid(tid)
+                                    .price(price)
+                                    .amount(amount)
+                                    .makerSide(makerSide)
+                                    .createdAt(createdAt)
+                                    .build();
+                                
+                                // Try to extract orderbook if available
+                                if (rootNode.has("obp") && !rootNode.get("obp").isNull()) {
+                                    try {
+                                        OrderBookPayload obp = objectMapper.treeToValue(rootNode.get("obp"), OrderBookPayload.class);
+                                        trade.setObp(obp);
+                                    } catch (Exception obpEx) {
+                                        logger.warn("Could not parse orderbook payload: {}", obpEx.getMessage());
+                                    }
+                                }
+                                
+                                logger.debug("Manually extracted Trade ID: {} with price: {} and amount: {}",
+                                        trade.getTid(), trade.getPrice(), trade.getAmount());
+                                
+                                return trade;
+                            } catch (Exception ex) {
+                                logger.error("Manual extraction also failed: {}", ex.getMessage());
+                            }
                         }
                     } else {
-                        logger.info("Message does not contain orderbook payload");
+                        logger.debug("Message does not contain orderbook payload");
                     }
                 } else {
-                    logger.info("Message with key {} doesn't match expected format", key);
+                    logger.debug("Message with key {} doesn't match expected format", key);
                 }
             } catch (Exception e) {
                 logger.error("Error processing record value: {}", value, e);
@@ -419,5 +508,43 @@ public class TradesConsumer {
         }
         
         return reconnect();
+    }
+    
+    /**
+     * Fetches a specific Kafka record by offset.
+     * 
+     * @param offset The offset of the record to fetch
+     * @return The ConsumerRecord at the specified offset, or null if not found
+     */
+    public ConsumerRecord<String, String> getRecordByOffset(long offset) {
+        if (!running.get()) {
+            logger.info("Consumer is not running");
+            return null;
+        }
+
+        try {
+            TopicPartition partition = new TopicPartition(TOPIC, PARTITION);
+            
+            // Seek to the specific offset
+            consumer.seek(partition, offset);
+            
+            // Poll for records
+            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+            
+            // Find the record with the exact offset
+            for (ConsumerRecord<String, String> record : records) {
+                if (record.offset() == offset) {
+                    logger.info("Found record at offset {} with key: {}", offset, record.key());
+                    return record;
+                }
+            }
+            
+            logger.warn("No record found at offset {}", offset);
+            return null;
+            
+        } catch (Exception e) {
+            logger.error("Error fetching record at offset {}: {}", offset, e.getMessage(), e);
+            return null;
+        }
     }
 }

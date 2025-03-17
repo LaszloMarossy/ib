@@ -2,6 +2,9 @@ package com.ibbe.websocket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ibbe.entity.FxTradesDisplayData;
+import com.ibbe.entity.PerformanceData;
+import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeConfig;
 import com.ibbe.fx.PerformanceWindow;
 import com.ibbe.util.PropertiesUtil;
@@ -22,21 +25,40 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Collections;
+import javafx.application.Platform;
 
 /**
  * WebSocket client for connecting to the PerformanceAnalysisEndpoint.
  * Sends configuration data and receives performance analysis results.
+ * Maintains a complete dataset of up to 50,000 records for efficient windowing.
  */
 public class PerformanceAnalysisClient extends TextWebSocketHandler {
     private final PerformanceWindow window;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private WebSocketSession session;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final ScheduledExecutorService chartUpdater = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService chartUpdater;
     
     // Queue to store data points for throttled processing
     private final Queue<PerformanceData> dataQueue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean processingActive = new AtomicBoolean(false);
+    
+    // Complete dataset storage - thread-safe list with capacity for 50,000 records
+    private final List<PerformanceData> completeDataset = Collections.synchronizedList(new ArrayList<>(50000));
+    private final AtomicInteger totalRecordsReceived = new AtomicInteger(0);
+    
+    // Maximum number of records to store in memory
+    private static final int MAX_RECORDS = 50000;
+    
+    // Window size for batch updates to the UI
+    private static final int UI_WINDOW_SIZE = 1000;
+    
+    // Add a configuration for maximum dataset size
+    private static final int MAX_DATASET_SIZE = 50000;
     
     /**
      * Creates a new PerformanceAnalysisClient.
@@ -61,8 +83,10 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                     session.close();
                 }
                 
-                // Clear any existing data in the queue
+                // Clear any existing data
                 dataQueue.clear();
+                completeDataset.clear();
+                totalRecordsReceived.set(0);
                 
                 // Stop any existing processing
                 processingActive.set(false);
@@ -74,8 +98,6 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                 String wsUrl = PropertiesUtil.getProperty("server.ws.url");
                 String performanceAnalysisEndpoint = wsUrl.replace("/websocket", "/performanceanalysis");
                 
-                System.out.println("Connecting to: " + performanceAnalysisEndpoint);
-                
                 // Connect to the server
                 session = client.execute(this, performanceAnalysisEndpoint).get();
                 
@@ -86,7 +108,7 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                 String configJson = objectMapper.writeValueAsString(config);
                 session.sendMessage(new TextMessage(configJson));
                 
-                // Start processing data at a rate of 3 records per second
+                // Start processing data
                 processingActive.set(true);
                 startProcessingData();
                 
@@ -101,57 +123,150 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     }
     
     /**
-     * Starts processing data from the queue as fast as possible.
+     * Starts processing data from the queue efficiently.
+     * Uses batching to reduce UI updates and improve performance.
      */
     private void startProcessingData() {
+        if (chartUpdater != null && !chartUpdater.isShutdown()) {
+            chartUpdater.shutdownNow();
+        }
+        
+        chartUpdater = Executors.newSingleThreadScheduledExecutor();
         chartUpdater.scheduleAtFixedRate(() -> {
-            if (processingActive.get()) {
-                // Process all available data in the queue in batches
-                int processedCount = 0;
-                int maxBatchSize = 50; // Process up to 50 records per batch to maintain UI responsiveness
+            try {
+                // Process data in batches for better performance
+                List<PerformanceData> batch = new ArrayList<>();
+                PerformanceData data;
                 
-                while (processingActive.get() && processedCount < maxBatchSize) {
-                    PerformanceData data = dataQueue.poll();
-                    if (data == null) {
-                        break; // No more data in queue
-                    }
-                    
-                    // Debug output to check values before sending to window
-                    System.out.println("Processing from queue - Trade Price: " + data.tradePrice + 
-                            ", Ask: " + data.avgAskPrice + ", Bid: " + data.avgBidPrice + 
-                            ", Amount: " + (data.amountMissing ? "MISSING" : data.tradeAmount));
-                    
-                    // Only skip if price is null - removed the low value check
-                    if (data.tradePrice == null) {
-                        System.out.println("Skipping queued data point with null trade price");
-                        continue;
-                    }
-                    
+                // Collect up to 100 data points in a batch
+                while ((data = dataQueue.poll()) != null && batch.size() < 100) {
+                    batch.add(data);
+                    addToCompleteDataset(data);
+                }
+                
+                if (!batch.isEmpty()) {
+                    // Update the UI with the batch of data
+                    updateUIWithBatch(batch);
+                }
+            } catch (Exception e) {
+                System.err.println("Error processing data: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }, 0, 100, TimeUnit.MILLISECONDS);
+    }
+    
+    /**
+     * Adds a data point to the complete dataset, maintaining the maximum size.
+     * 
+     * @param data The data point to add
+     */
+    private void addToCompleteDataset(PerformanceData data) {
+        synchronized (completeDataset) {
+            completeDataset.add(data);
+            
+            // Increment the total records counter
+            totalRecordsReceived.incrementAndGet();
+            
+            // Trim the dataset if it exceeds the maximum size
+            if (completeDataset.size() > MAX_DATASET_SIZE) {
+                // Remove the oldest data points to maintain the maximum size
+                int excessPoints = completeDataset.size() - MAX_DATASET_SIZE;
+                completeDataset.subList(0, excessPoints).clear();
+            }
+        }
+    }
+    
+    /**
+     * Updates the UI with a batch of data points.
+     * 
+     * @param batch The batch of data points to update the UI with
+     */
+    private void updateUIWithBatch(List<PerformanceData> batch) {
+        if (batch.isEmpty()) {
+            return;
+        }
+        
+        // Get the last data point for UI updates
+        PerformanceData lastData = batch.get(batch.size() - 1);
+        
+        // Extract balance information if available
+        if (lastData.getFxTradesDisplayData() != null) {
+            FxTradesDisplayData displayData = lastData.getFxTradesDisplayData();
+            
+            // Update balance and profit information
+            if (displayData.getCurrencyBalance() != null && 
+                displayData.getCoinBalance() != null && 
+                displayData.getProfit() != null) {
+                
+                Platform.runLater(() -> {
                     try {
-                        window.addDataPoint(
-                                data.tradePrice,
-                                data.tradeAmount,
-                                data.avgAskPrice,
-                                data.avgAskAmount,
-                                data.avgBidPrice,
-                                data.avgBidAmount,
-                                data.timestamp,
-                                data.amountMissing
+                        window.updateBalanceDisplay(
+                            displayData.getCurrencyBalance(),
+                            displayData.getCoinBalance(),
+                            displayData.getProfit()
                         );
-                        System.out.println("Successfully added data point to window with price: " + data.tradePrice);
                     } catch (Exception e) {
-                        System.err.println("Error adding data point to window: " + e.getMessage());
+                        System.err.println("Error updating balance and profit: " + e.getMessage());
                         e.printStackTrace();
                     }
-                    
-                    processedCount++;
-                }
-                
-                if (processedCount > 0) {
-                    System.out.println("Processed " + processedCount + " data points in this batch. Queue size: " + dataQueue.size());
-                }
+                });
             }
-        }, 0, 10, TimeUnit.MILLISECONDS); // Run every 10ms for maximum throughput while maintaining UI responsiveness
+        }
+        
+        // Update the chart with the new data
+        Platform.runLater(() -> {
+            try {
+                // Notify the window that new data is available
+                window.onNewDataAvailable();
+            } catch (Exception e) {
+                System.err.println("Error updating chart: " + e.getMessage());
+                e.printStackTrace();
+            }
+        });
+    }
+    
+    /**
+     * Gets a window of data from the complete dataset.
+     * 
+     * @param startIndex The start index of the window
+     * @param windowSize The size of the window
+     * @return A list of data points in the specified window
+     */
+    public List<PerformanceData> getDataWindow(int startIndex, int windowSize) {
+        synchronized (completeDataset) {
+            if (completeDataset.isEmpty()) {
+                return Collections.emptyList();
+            }
+            
+            // Ensure the start index is valid
+            int validStartIndex = Math.max(0, Math.min(startIndex, completeDataset.size() - 1));
+            
+            // Ensure the window size doesn't exceed the available data
+            int validWindowSize = Math.min(windowSize, completeDataset.size() - validStartIndex);
+            
+            // Return a copy of the window to prevent concurrent modification issues
+            return new ArrayList<>(completeDataset.subList(validStartIndex, validStartIndex + validWindowSize));
+        }
+    }
+    
+    /**
+     * Gets the total number of data points in the complete dataset.
+     * 
+     * @return The total number of data points
+     */
+    public int getDatasetSize() {
+        synchronized (completeDataset) {
+            return completeDataset.size();
+        }
+    }
+    
+    /**
+     * Gets the total number of records received since the start of the analysis.
+     * 
+     * @return The total number of records received
+     */
+    public int getTotalRecordsReceived() {
+        return totalRecordsReceived.get();
     }
     
     /**
@@ -161,84 +276,84 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     @Override
     public void handleTextMessage(WebSocketSession session, TextMessage message) {
         try {
-            // Parse the JSON message
-            JsonNode node = objectMapper.readTree(message.getPayload());
+            String payload = message.getPayload();
             
-            // Check if it's an error message
-            if (node.has("error") && node.get("error").asBoolean()) {
-                String errorMessage = node.has("message") ? node.get("message").asText() : "Unknown error";
-                window.updateStatus("Error: " + errorMessage);
-                return;
-            }
-            
-            // Extract performance data
-            BigDecimal tradePrice = getBigDecimal(node, "tradePrice");
-            BigDecimal tradeAmount = getBigDecimal(node, "tradeAmount");
-            BigDecimal avgAskPrice = getBigDecimal(node, "avgAskPrice");
-            BigDecimal avgAskAmount = getBigDecimal(node, "avgAskAmount");
-            BigDecimal avgBidPrice = getBigDecimal(node, "avgBidPrice");
-            BigDecimal avgBidAmount = getBigDecimal(node, "avgBidAmount");
-            
-            // Extract timestamp (defaults to current time if not available)
-            long timestamp = node.has("timestamp") ? node.get("timestamp").asLong() : System.currentTimeMillis();
-            
-            // Extract amountMissing flag
-            boolean amountMissing = node.has("amountMissing") && node.get("amountMissing").asBoolean();
-            
-            // Debug output to check raw values from JSON
-            System.out.println("Received from server - Trade Price: " + tradePrice + 
-                    ", Ask: " + avgAskPrice + ", Bid: " + avgBidPrice + 
-                    ", Amount: " + (amountMissing ? "MISSING" : tradeAmount));
-            
-            // Only skip if price is null - removed the low value check
-            if (tradePrice == null) {
-                System.out.println("Client skipping data point with null trade price");
-                return;
-            }
-            
-            // Create a data object and add it to the queue for throttled processing
-            PerformanceData data = new PerformanceData(
-                    tradePrice,
-                    tradeAmount,
-                    avgAskPrice,
-                    avgAskAmount,
-                    avgBidPrice,
-                    avgBidAmount,
-                    timestamp,
-                    amountMissing
-            );
-            
-            dataQueue.add(data);
-            System.out.println("Added data point to queue. Queue size: " + dataQueue.size());
-            
-            // Update status with the latest trade ID
-            if (node.has("tradeId")) {
-                window.updateStatus("Received Trade ID: " + node.get("tradeId").asLong() + 
-                        " (Queued: " + dataQueue.size() + ")");
-            }
-            
-        } catch (Exception e) {
-            e.printStackTrace();
-            window.updateStatus("Error processing message: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * Safely extracts a BigDecimal from a JSON node.
-     */
-    private BigDecimal getBigDecimal(JsonNode node, String fieldName) {
-        if (node.has(fieldName) && !node.get(fieldName).isNull()) {
+            // Try to deserialize the message directly into a PerformanceData object
             try {
-                BigDecimal value = new BigDecimal(node.get(fieldName).asText());
-                System.out.println("Extracted " + fieldName + ": " + value);
-                return value;
+                PerformanceData data = objectMapper.readValue(payload, PerformanceData.class);
+                
+                // Add the data to the queue for processing
+                if (data != null) {
+                    dataQueue.offer(data);
+                }
             } catch (Exception e) {
-                System.err.println("Error parsing " + fieldName + ": " + e.getMessage());
-                return null;
+                // If direct deserialization fails, try to extract fields manually
+                System.err.println("Failed to deserialize message directly: " + e.getMessage());
+                
+                // Extract fields from the JSON message
+                JsonNode rootNode = objectMapper.readTree(payload);
+                
+                PerformanceData data = new PerformanceData();
+                
+                // Extract basic fields
+                if (rootNode.has("sequence")) {
+                    data.setSequence(rootNode.get("sequence").asInt());
+                }
+                
+                if (rootNode.has("timestamp")) {
+                    data.setTimestamp(rootNode.get("timestamp").asLong());
+                }
+                
+                if (rootNode.has("tradePrice")) {
+                    data.setTradePrice(rootNode.get("tradePrice").asDouble());
+                }
+                
+                if (rootNode.has("tradeAmount")) {
+                    data.setTradeAmount(rootNode.get("tradeAmount").asDouble());
+                }
+                
+                if (rootNode.has("avgAskPrice")) {
+                    data.setAvgAskPrice(rootNode.get("avgAskPrice").asDouble());
+                }
+                
+                if (rootNode.has("avgAskAmount")) {
+                    data.setAvgAskAmount(rootNode.get("avgAskAmount").asDouble());
+                }
+                
+                if (rootNode.has("avgBidPrice")) {
+                    data.setAvgBidPrice(rootNode.get("avgBidPrice").asDouble());
+                }
+                
+                if (rootNode.has("avgBidAmount")) {
+                    data.setAvgBidAmount(rootNode.get("avgBidAmount").asDouble());
+                }
+                
+                // Extract pretend trade if present
+                if (rootNode.has("pretendTrade") && !rootNode.get("pretendTrade").isNull()) {
+                    JsonNode tradeNode = rootNode.get("pretendTrade");
+                    Trade trade = objectMapper.treeToValue(tradeNode, Trade.class);
+                    data.setPretendTrade(trade);
+                }
+                
+                // Extract trades display data if present
+                if (rootNode.has("tradesDisplayData") && !rootNode.get("tradesDisplayData").isNull()) {
+                    JsonNode displayDataNode = rootNode.get("tradesDisplayData");
+                    FxTradesDisplayData displayData = objectMapper.treeToValue(displayDataNode, FxTradesDisplayData.class);
+                    data.setFxTradesDisplayData(displayData);
+                }
+                
+                // Add the data to the queue for processing
+                dataQueue.offer(data);
             }
+        } catch (Exception e) {
+            System.err.println("Error handling message: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Update status to show the error
+            Platform.runLater(() -> {
+                window.updateStatus("Error: " + e.getMessage());
+            });
         }
-        System.out.println("Field " + fieldName + " is null or missing");
-        return null;
     }
     
     /**
@@ -251,51 +366,66 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     }
     
     /**
+     * Handles WebSocket connection establishment.
+     */
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) {
+        window.updateStatus("Connected to server");
+    }
+    
+    /**
      * Handles WebSocket transport errors.
      */
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         processingActive.set(false);
-        window.updateStatus("Connection error: " + exception.getMessage());
-        try {
-            if (session.isOpen()) {
-                session.close();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        window.updateStatus("Transport error: " + exception.getMessage());
     }
     
     /**
-     * Data class for performance data.
+     * Disconnects from the server and cleans up resources.
+     * This method should be called when the application is shutting down.
      */
-    private static class PerformanceData {
-        private final BigDecimal tradePrice;
-        private final BigDecimal tradeAmount;
-        private final BigDecimal avgAskPrice;
-        private final BigDecimal avgAskAmount;
-        private final BigDecimal avgBidPrice;
-        private final BigDecimal avgBidAmount;
-        private final long timestamp;
-        private final boolean amountMissing;
-        
-        public PerformanceData(
-                BigDecimal tradePrice,
-                BigDecimal tradeAmount,
-                BigDecimal avgAskPrice,
-                BigDecimal avgAskAmount,
-                BigDecimal avgBidPrice,
-                BigDecimal avgBidAmount,
-                long timestamp,
-                boolean amountMissing) {
-            this.tradePrice = tradePrice;
-            this.tradeAmount = tradeAmount;
-            this.avgAskPrice = avgAskPrice;
-            this.avgAskAmount = avgAskAmount;
-            this.avgBidPrice = avgBidPrice;
-            this.avgBidAmount = avgBidAmount;
-            this.timestamp = timestamp;
-            this.amountMissing = amountMissing;
+    public void disconnect() {
+        try {
+            // Stop processing data
+            processingActive.set(false);
+            
+            // Clear the data queue and dataset
+            dataQueue.clear();
+            completeDataset.clear();
+            
+            // Close the WebSocket session if it's open
+            if (session != null && session.isOpen()) {
+                session.close(CloseStatus.NORMAL);
+                session = null;
+            }
+            
+            // Shutdown the executor services
+            chartUpdater.shutdown();
+            try {
+                if (!chartUpdater.awaitTermination(500, TimeUnit.MILLISECONDS)) {
+                    chartUpdater.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                chartUpdater.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            
+            executor.shutdown();
+            try {
+                if (!executor.awaitTermination(500, TimeUnit.MILLISECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            
+            window.updateStatus("Disconnected from server");
+        } catch (Exception e) {
+            e.printStackTrace();
+            window.updateStatus("Error during disconnect: " + e.getMessage());
         }
     }
 } 

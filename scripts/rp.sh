@@ -2,10 +2,46 @@
 # Script to run the performance window
 # Usage: ./scripts/rp.sh
 
-cd "/Users/laszlo/dev/code/ibtrader/ib-client"
+# Change to the project root directory
+cd "$(dirname "$0")/.."
+PROJECT_ROOT=$(pwd)
 
-# Set the Java module path
-JAVA_MODULE_PATH="--module-path /Users/laszlo/dev/code/ibtrader/ib-client/target/classes:/Users/laszlo/.m2/repository/org/openjfx/javafx-controls/17.0.2/javafx-controls-17.0.2.jar:/Users/laszlo/.m2/repository/org/openjfx/javafx-graphics/17.0.2/javafx-graphics-17.0.2.jar:/Users/laszlo/.m2/repository/org/openjfx/javafx-base/17.0.2/javafx-base-17.0.2.jar"
+# Check if the JAR file exists and when it was last modified
+JAR_FILE="$PROJECT_ROOT/ib-client/target/ibbe-performance-jar-with-dependencies.jar"
+REBUILD_SCRIPT="$PROJECT_ROOT/scripts/rebuild-all.sh"
+
+# Function to check if rebuild is needed
+need_rebuild() {
+    if [ ! -f "$JAR_FILE" ]; then
+        echo "JAR file does not exist. Rebuilding..."
+        return 0
+    fi
+    
+    # Check if any source files are newer than the JAR
+    find "$PROJECT_ROOT" -name "*.java" -newer "$JAR_FILE" | grep -q . && {
+        echo "Source files have been modified since last build. Rebuilding..."
+        return 0
+    }
+    
+    return 1
+}
+
+# Rebuild if needed
+if need_rebuild; then
+    echo "Running rebuild-all.sh to ensure latest changes are included..."
+    "$REBUILD_SCRIPT"
+    
+    # Check if rebuild was successful
+    if [ $? -ne 0 ]; then
+        echo "Rebuild failed. Please check for errors."
+        exit 1
+    fi
+    echo "Rebuild completed successfully."
+fi
+
+# Change to the ib-client directory
+cd "$PROJECT_ROOT/ib-client"
 
 # Run the performance window
+echo "Running the performance window with the latest changes..."
 java --module-path /Users/laszlo/dev/javafx-sdk-21.0.1/lib --add-modules javafx.controls,javafx.fxml -jar target/ibbe-performance-jar-with-dependencies.jar 

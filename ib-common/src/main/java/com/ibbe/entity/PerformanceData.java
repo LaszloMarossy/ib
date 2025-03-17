@@ -1,5 +1,7 @@
 package com.ibbe.entity;
 
+import com.ibbe.util.PropertiesUtil;
+
 import java.math.BigDecimal;
 import java.util.Deque;
 
@@ -14,32 +16,41 @@ import java.util.Deque;
  *   SAUp contributes to sell signal)
  *
  * And finally a double type for
- * - PosRelToAvg (position relative to averages)
+ * - priceCloserToBestAsk (position relative to averages)
  * indicating whether the trade price is closer to the bid price (favoring buy)
- * han to the ask price (favoring sell) (to be used with the best bid and ask price)
+ * than to the ask price (favoring sell) (to be used with the best bid and ask price)
  */
 public class PerformanceData {
     private int sequence;
-    private double tradePrice;
-    private double tradeAmount;
-    private double avgAskPrice;
-    private double avgAskAmount;
-    private double avgBidPrice;
-    private double avgBidAmount;
+    public double tradePrice;
+    public double tradeAmount;
+    public double avgAskPrice;
+    public double avgAskAmount;
+    public double avgBidPrice;
+    public double avgBidAmount;
     private long timestamp;
-    private boolean amountMissing;
     private Long tradeId;
+    private boolean amountMissing;
 
     // Moving averages
-    private double STMAPrice; // Short term moving average of price
-    private double LTMAPrice; // Long term moving average of price
+    public double STMAPrice; // Short term moving average of price
+    public double LTMAPrice; // Long term moving average of price
 
     // Sum of amounts for price movements
-    private double SAUp;    // Sum of trade amounts where price of t > price of t-1
-    private double SADown;  // Sum of trade amounts where price of t < price of t-1
+    public double SAUp;    // Sum of trade amounts where price of t > price of t-1
+    public double SADown;  // Sum of trade amounts where price of t < price of t-1
 
-    // Position relative to averages
-    private double PosRelToAvg; // Indicates whether trade price is closer to bid (buy signal) or ask (sell signal)
+    // trade price relative to best bid/ask prices - positive means closer to ask; negative closer to bid
+    public double priceCloserToBestAsk;
+
+    // if a trade occurs by the PerformanceTrader bc of its configuration, then this represents it
+    private Trade pretendTrade;
+
+    // to keep balances and profit
+    private FxTradesDisplayData fxTradesDisplayData;
+
+    // keeping configured constants for long/short term moving average calc
+    public int ltma, stma;
 
 
 
@@ -62,44 +73,55 @@ public class PerformanceData {
         this.sequence = sequence;
         this.tradePrice = tradePrice;
         this.tradeAmount = tradeAmount;
+
         this.avgAskPrice = avgAskPrice;
         this.avgAskAmount = avgAskAmount;
         this.avgBidPrice = avgBidPrice;
         this.avgBidAmount = avgBidAmount;
-        this.timestamp = timestamp;
-        this.amountMissing = amountMissing;
-        this.tradeId = tradeId;
 
+        this.timestamp = timestamp;
+        this.tradeId = tradeId;
+        this.amountMissing = amountMissing;
+
+        // short/long term moving average
         this.STMAPrice = 0.0;
         this.LTMAPrice = 0.0;
+        // sum of amounts up/down
         this.SAUp = 0.0;
         this.SADown = 0.0;
-        this.PosRelToAvg = 0.0;
+        // position relative to averages
+        this.priceCloserToBestAsk = 0.0;
+
+        // get from config what is long vs short term
+        this.stma = Integer.parseInt(PropertiesUtil.getProperty("stma"));
+        this.ltma = Integer.parseInt(PropertiesUtil.getProperty("ltma"));
 
     }
 
 
 
     /**
-     * Updates the position relative to averages based on current trade price, best bid, and best ask
+     * Updates the trade price relative to best bid, and best ask prices
+     * - Positive values indicate closer to bid (buy signal)
+     * - Negative values indicate closer to ask (sell signal)
      *
      * @param orderBook containing the asks and bids array
      */
-    public void updatePosRelToAvg(OrderBookPayload orderBook) {
+    public void updateTradePriceRelToBest(OrderBookPayload orderBook) {
         if (orderBook == null || orderBook.getBids() == null || orderBook.getAsks() == null 
         || orderBook.getBids().length == 0 || orderBook.getAsks().length == 0) {
+            // If orderbook is null or empty, set a neutral value
+            this.priceCloserToBestAsk = 0.0;
             return;
         }
 
         // Get best bid (highest buy price) - first in the bids array
         Order bestBid = orderBook.getBids()[0];
         BigDecimal bestBidPrice = bestBid.getP();
-        BigDecimal bestBidAmount = bestBid.getA();
 
         // Get best ask (lowest sell price) - first in the asks array
         Order bestAsk = orderBook.getAsks()[0];
         BigDecimal bestAskPrice = bestAsk.getP();
-        BigDecimal bestAskAmount = bestAsk.getA();
 
         if (bestBidPrice != null && bestAskPrice != null) {
             // Calculate distances
@@ -107,14 +129,16 @@ public class PerformanceData {
             double distanceToAsk = Math.abs(tradePrice - bestAskPrice.doubleValue());
 
             // Calculate position relative to averages
-            // Positive values indicate closer to bid (buy signal)
-            // Negative values indicate closer to ask (sell signal)
-            this.PosRelToAvg = distanceToAsk - distanceToBid;
+            this.priceCloserToBestAsk = distanceToAsk - distanceToBid;
+        } else {
+            // If prices are null, set a neutral value
+            this.priceCloserToBestAsk = 0.0;
         }
     }
 
     /**
      * Updates the moving averages based on the current prices in the queue
+     *
      */
     public void updateMovingAverages(Deque<BigDecimal> tradePricesQueue) {
         if (tradePricesQueue.isEmpty()) {
@@ -123,17 +147,24 @@ public class PerformanceData {
 
         // Calculate short-term moving average (all prices in the queue)
         double sum = 0.0;
+        int counter = 0;
         for (BigDecimal price : tradePricesQueue) {
+            counter++;
             sum += price.doubleValue();
+            if (counter == stma) {
+                this.STMAPrice = sum/counter;
+            }
+            if (counter == ltma) {
+                this.LTMAPrice = sum/counter;
+                break;
+            }
         }
-        this.STMAPrice = sum / tradePricesQueue.size();
-
-        // For long-term moving average, we could use a longer period
-        // This is a simplified implementation - in a real system, you might want to
-        // maintain a separate, larger queue for the long-term average
-        this.LTMAPrice = this.STMAPrice; // Simplified for now
     }
 
+    /**
+     *
+     * @param lastPrice the price of the last trade
+     */
     public void updateSumOfTrade(BigDecimal lastPrice) {
         // Update SAUp and SADown if we have a previous price to compare
         if (lastPrice != null) {
@@ -240,14 +271,6 @@ public class PerformanceData {
         this.timestamp = timestamp != null ? timestamp : 0L;
     }
 
-    public boolean isAmountMissing() {
-        return amountMissing;
-    }
-
-    public void setAmountMissing(boolean amountMissing) {
-        this.amountMissing = amountMissing;
-    }
-
     public Long getTradeId() {
         return tradeId;
     }
@@ -288,13 +311,58 @@ public class PerformanceData {
         this.SADown = SADown;
     }
 
-    public double getPosRelToAvg() {
-        return PosRelToAvg;
+    public Trade getPretendTrade() {
+        return pretendTrade;
     }
 
-    public void setPosRelToAvg(double posRelToAvg) {
-        this.PosRelToAvg = posRelToAvg;
+    public void setPretendTrade(Trade pretendTrade) {
+        this.pretendTrade = pretendTrade;
     }
 
+    public FxTradesDisplayData getFxTradesDisplayData() {
+        return fxTradesDisplayData;
+    }
+
+    public void setFxTradesDisplayData(FxTradesDisplayData fxTradesDisplayData) {
+        this.fxTradesDisplayData = fxTradesDisplayData;
+    }
+
+    // Getter and setter for amountMissing
+    public boolean isAmountMissing() {
+        return amountMissing;
+    }
+
+    public void setAmountMissing(boolean amountMissing) {
+        this.amountMissing = amountMissing;
+    }
+
+    /**
+     * Gets the price closer to best ask value.
+     * 
+     * @return the price closer to best ask value
+     */
+    public double getPriceCloserToBestAsk() {
+        return priceCloserToBestAsk;
+    }
+    
+    /**
+     * Sets the price closer to best ask value.
+     * 
+     * @param priceCloserToBestAsk the price closer to best ask value to set
+     */
+    public void setPriceCloserToBestAsk(double priceCloserToBestAsk) {
+        this.priceCloserToBestAsk = priceCloserToBestAsk;
+    }
+    
+    /**
+     * Sets the price closer to best ask value from a BigDecimal.
+     * 
+     * @param value the value to set
+     */
+    public void setPriceCloserToBestAsk(BigDecimal value) {
+        if (value != null) {
+            this.priceCloserToBestAsk = value.doubleValue();
+        }
+    }
 
 } 

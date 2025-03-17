@@ -194,14 +194,23 @@
                         <configuration>
                             <archive>
                                 <manifest>
-                                    <addClasspath>true</addClasspath>
                                     <mainClass>com.ibbe.fx.PerformanceWindow</mainClass>
                                 </manifest>
+                                <manifestEntries>
+                                    <Multi-Release>true</Multi-Release>
+                                </manifestEntries>
                             </archive>
                             <descriptorRefs>
                                 <descriptorRef>jar-with-dependencies</descriptorRef>
                             </descriptorRefs>
                             <finalName>ibbe-performance</finalName>
+                            <appendAssemblyId>true</appendAssemblyId>
+                            <jvmArgs>
+                                <jvmArg>-Xmx1024m</jvmArg>
+                                <jvmArg>-XX:+UseG1GC</jvmArg>
+                                <jvmArg>-XX:MaxGCPauseMillis=200</jvmArg>
+                                <jvmArg>-XX:+UseStringDeduplication</jvmArg>
+                            </jvmArgs>
                         </configuration>
                     </execution>
                 </executions>

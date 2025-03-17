@@ -15,7 +15,7 @@
     <description>Spring Boot server for IB application</description>
     
     <properties>
-        <spring-boot.version>3.2.3</spring-boot.version>
+        <spring-boot.version>3.3.9</spring-boot.version>
     </properties>
     
     <dependencies>
@@ -52,7 +52,7 @@
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
-            <version>3.1.0</version>
+            <version>3.2.0</version>
         </dependency>
         
         <!-- Logging dependencies -->
@@ -86,7 +86,7 @@
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka-test</artifactId>
-            <version>3.1.0</version>
+            <version>3.2.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

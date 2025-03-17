@@ -1,16 +1,18 @@
 package com.ibbe.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ibbe.entity.FxTradesDisplayData;
 import com.ibbe.entity.Order;
 import com.ibbe.entity.OrderBookPayload;
 import com.ibbe.entity.PerformanceData;
 import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeConfig;
 import com.ibbe.entity.TrendData;
+import com.ibbe.executor.PerformanceTrader;
 import com.ibbe.kafka.TradesConsumer;
+import com.ibbe.util.PropertiesUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -98,13 +100,18 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
      */
     private void analyzeTradeConfigPerf(WebSocketSession session, TradeConfig config, AtomicBoolean isRunning) {
         try {
-            // Create a new consumer instance for this session
+            // Create a new consumer instance for this session to consume kafka records
             TradesConsumer sessionConsumer = new TradesConsumer();
-            
-            // Start the consumer
             sessionConsumer.startConsumer();
 
+            // objects to keep track of performance over many of the played back kafka trades
             final TrendData trendData = new TrendData();
+            final PerformanceTrader trader = new PerformanceTrader(config);
+            // set initial balances from config, but no latest price and recent trades!
+            final FxTradesDisplayData fxTradesDisplayData = new FxTradesDisplayData(
+                new BigDecimal(PropertiesUtil.getProperty("starting.bal.currency")),
+                new BigDecimal(PropertiesUtil.getProperty("starting.bal.coin")),
+                null, null);
             
             // Register message handler
             sessionConsumer.registerMessageHandler(trade -> {
@@ -117,14 +124,21 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
                 }
                 
                 try {
+                    // set the current price for the potential pretend trade from the trade just coming in
+                    // todo here potentially may use the nearest orderbook prices depending on whether buying or selling
+                    fxTradesDisplayData.setLatestPrice(trade.getPrice());
                     // Extract orderbook data if available
                     OrderBookPayload orderBook = trade.getObp();
                     if (orderBook != null) {
                         // Calculate statistics
                         PerformanceData performanceData = calculatePerformanceData(trade, orderBook, config);
+                        // tag along current balance data to keep track of profits
+                        performanceData.setFxTradesDisplayData(fxTradesDisplayData);
                         // now calculate long and short term trends data
                         calculateTrends(trendData, performanceData, orderBook);
-                        
+                        // here make trade decision based on configuration
+                        trader.makeTradeDecision(trade, performanceData);
+
                         // Send data to client
                         String jsonData = objectMapper.writeValueAsString(performanceData);
                         session.sendMessage(new TextMessage(jsonData));
@@ -160,9 +174,10 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
 
     /**
      * enhance the PeformanceData object with trends data, redying it for trading decisions and FX display
+     * get all info into place for making trade decisions
      */
     private void calculateTrends(TrendData trendData, PerformanceData performanceData, OrderBookPayload orderBook) {
-        performanceData.updatePosRelToAvg(orderBook);
+        performanceData.updateTradePriceRelToBest(orderBook);
         performanceData.updateMovingAverages(trendData.getTradePricesQueue());
         performanceData.updateSumOfTrade(trendData.getLastPrice());
     }
@@ -170,10 +185,10 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
     /**
      * Calculates performance data based on trade and orderbook data.
      *
-     * Bt​: the average price of the top 20 bid prices.
-     * AtAt​: the average price of the top 20 ask prices.
-     * QBtQBt​​: the average amount of the top 20 bid amounts.
-     * QAtQAt​​: the average amount of the top 20 ask amounts.
+     * Bt: the average price of the top 20 bid prices.
+     * At: the average price of the top 20 ask prices.
+     * QBt: the average amount of the top 20 bid amounts.
+     * QAt: the average amount of the top 20 ask amounts.
      */
     private PerformanceData calculatePerformanceData(Trade trade, OrderBookPayload orderBook, TradeConfig config) {
         // Calculate average ask price and amount
@@ -209,10 +224,7 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
         BigDecimal avgBidAmount = bidCount.compareTo(BigDecimal.ZERO) > 0 
                 ? totalBidAmount.divide(bidCount, 4, RoundingMode.HALF_UP) 
                 : BigDecimal.ZERO;
-        
-        // Check if trade amount is missing
-        boolean amountMissing = (trade.getAmount() == null);
-        
+
         // Polulate performance data object
         PerformanceData data = new PerformanceData();
         data.setSequence(sequenceCounter.getAndIncrement());
@@ -224,8 +236,7 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
         data.setAvgBidPrice(avgBidPrice);
         data.setAvgBidAmount(avgBidAmount);
         data.setTimestamp(System.currentTimeMillis());
-        data.setAmountMissing(amountMissing);
-        
+
         return data;
     }
     

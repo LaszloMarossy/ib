@@ -26,17 +26,28 @@ public class TradeWs extends Trade {
                  @JsonProperty("to") String to,
                  @JsonProperty("t") String makerSide ) {
     // Handle null createdAt value
-    if (createdAt != null) {
-      ZonedDateTime zonedDateTime = Instant.ofEpochMilli(Long.parseLong(createdAt)).atZone(ZoneOffset.UTC);
-      this.createdAt = zonedDateTime.toString();
+    if (createdAt != null && !createdAt.isEmpty()) {
+      try {
+        ZonedDateTime zonedDateTime = Instant.ofEpochMilli(Long.parseLong(createdAt)).atZone(ZoneOffset.UTC);
+        this.createdAt = zonedDateTime.toString();
+      } catch (NumberFormatException e) {
+        // If parsing fails, set current time as fallback
+        this.createdAt = ZonedDateTime.now(ZoneOffset.UTC).toString();
+      }
     } else {
       // Set current time as fallback
       this.createdAt = ZonedDateTime.now(ZoneOffset.UTC).toString();
     }
     
-    this.amount = amount;
+    // Handle null amount
+    this.amount = (amount != null) ? amount : BigDecimal.ZERO;
+    
+    // Handle null makerSide
     this.makerSide = (makerSide != null && makerSide.equals("0")) ? "sell" : "buy";
-    this.price = price;
+    
+    // Handle null price
+    this.price = (price != null) ? price : BigDecimal.ZERO;
+    
     this.tid = tid;
   }
 

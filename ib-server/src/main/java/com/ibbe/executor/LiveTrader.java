@@ -41,7 +41,6 @@ public class LiveTrader extends AsyncExecutor implements PropertyChangeListener 
   private static final String MARKER_SIDE_SELL = "PRETEND sell";
   private static final String MARKER_SIDE_BUY = "PRETEND buy";
 
-  private static int topX;
   private String downN;
   private String upM;
   private String id;
@@ -80,7 +79,7 @@ public class LiveTrader extends AsyncExecutor implements PropertyChangeListener 
 
   /**
    * Creates a new trading executor with the specified configuration.
-   * Initializes trading state and registers for trade events.
+   * Initializes trading state and registers for trade events (reacting to BitsoDataAggregator trade events).
    * Called by ItsyBitsoWindow via IbbeController and TraderWrapper
    * @param tradeConfig the trading configuration to use (as passed by ItsyBitsoWindow)
    */
@@ -95,7 +94,6 @@ public class LiveTrader extends AsyncExecutor implements PropertyChangeListener 
       downN = tradeConfig.getDowns();
       upM = tradeConfig.getUps();
       id = tradeConfig.getId();
-      topX = Integer.parseInt(PropertiesUtil.getProperty("displaydata.topx"));
 
       tradeExe = Executors.newFixedThreadPool(5);
 
@@ -106,7 +104,7 @@ public class LiveTrader extends AsyncExecutor implements PropertyChangeListener 
       bitsoDataAggregator.addObserver(this);
     } catch (Exception e) {
       e.printStackTrace();
-      logger.error("SHIIIIIIT");
+      logger.error("Completely unexpected error: ", e);
     }
     logger.info("ADDED UPS:" + tradeConfig.getUps() + " DOWNS:" + tradeConfig.getDowns() + " ID:" + tradeConfig.getId());
   }
