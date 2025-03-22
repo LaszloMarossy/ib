@@ -6,7 +6,7 @@ import com.ibbe.entity.FxTradesDisplayData;
 import com.ibbe.entity.PerformanceData;
 import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeConfig;
-import com.ibbe.fx.PerformanceWindow;
+import com.ibbe.fx.PerformanceWindowInterface;
 import com.ibbe.util.PropertiesUtil;
 import com.ibbe.util.RandomString;
 import org.springframework.web.socket.CloseStatus;
@@ -37,7 +37,7 @@ import javafx.application.Platform;
  * Maintains a complete dataset of up to 50,000 records for efficient windowing.
  */
 public class PerformanceAnalysisClient extends TextWebSocketHandler {
-    private final PerformanceWindow window;
+    private final PerformanceWindowInterface window;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private WebSocketSession session;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -63,9 +63,9 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     /**
      * Creates a new PerformanceAnalysisClient.
      * 
-     * @param window The PerformanceWindow to update with analysis results
+     * @param window The window to update with analysis results
      */
-    public PerformanceAnalysisClient(PerformanceWindow window) {
+    public PerformanceAnalysisClient(PerformanceWindowInterface window) {
         this.window = window;
     }
     
@@ -156,24 +156,24 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     }
     
     /**
-     * Adds a data point to the complete dataset, maintaining the maximum size.
-     * 
-     * @param data The data point to add
+     * Adds a data point to the complete dataset, respecting the maximum size limit.
+     * Memory optimization to prevent OOM errors.
+     *
+     * @param data The data point to add.
      */
     private void addToCompleteDataset(PerformanceData data) {
         synchronized (completeDataset) {
+            // Add the new data point
             completeDataset.add(data);
             
-            // Increment the total records counter
-            totalRecordsReceived.incrementAndGet();
-            
-            // Trim the dataset if it exceeds the maximum size
-            if (completeDataset.size() > MAX_DATASET_SIZE) {
-                // Remove the oldest data points to maintain the maximum size
-                int excessPoints = completeDataset.size() - MAX_DATASET_SIZE;
-                completeDataset.subList(0, excessPoints).clear();
+            // If we have too many records, remove the oldest ones
+            // Instead of constant pruning, only trim when significantly over limit
+            if (completeDataset.size() > MAX_RECORDS + 500) {
+                int removeCount = completeDataset.size() - MAX_RECORDS;
+                completeDataset.subList(0, removeCount).clear();
             }
         }
+        totalRecordsReceived.incrementAndGet();
     }
     
     /**
@@ -226,26 +226,41 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     }
     
     /**
-     * Gets a window of data from the complete dataset.
-     * 
-     * @param startIndex The start index of the window
-     * @param windowSize The size of the window
-     * @return A list of data points in the specified window
+     * Retrieves a window of data from the complete dataset.
+     * Optimized to handle large datasets efficiently.
+     *
+     * @param startIndex The start index.
+     * @param windowSize The size of the window.
+     * @return A list containing the data points in the requested window.
      */
     public List<PerformanceData> getDataWindow(int startIndex, int windowSize) {
         synchronized (completeDataset) {
             if (completeDataset.isEmpty()) {
-                return Collections.emptyList();
+                return new ArrayList<>();
             }
             
-            // Ensure the start index is valid
-            int validStartIndex = Math.max(0, Math.min(startIndex, completeDataset.size() - 1));
+            // Validate the start index
+            int validStartIndex = Math.min(Math.max(0, startIndex), completeDataset.size() - 1);
             
-            // Ensure the window size doesn't exceed the available data
-            int validWindowSize = Math.min(windowSize, completeDataset.size() - validStartIndex);
+            // For slider view requests, limit window size to improve performance
+            // For full dataset requests (windowSize == MAX_DATASET_SIZE), return a reasonably sized chunk
+            int validWindowSize;
+            if (windowSize >= MAX_DATASET_SIZE) {
+                // For trade history, limit to last 100 records with trades
+                validWindowSize = Math.min(2000, completeDataset.size() - validStartIndex);
+            } else {
+                // For normal chart view, use requested window size
+                validWindowSize = Math.min(windowSize, completeDataset.size() - validStartIndex);
+            }
             
-            // Return a copy of the window to prevent concurrent modification issues
-            return new ArrayList<>(completeDataset.subList(validStartIndex, validStartIndex + validWindowSize));
+            // Return a copy of the data window
+            try {
+                return new ArrayList<>(completeDataset.subList(validStartIndex, validStartIndex + validWindowSize));
+            } catch (OutOfMemoryError e) {
+                // Fallback to a smaller window if we hit memory issues
+                System.gc();
+                return new ArrayList<>(completeDataset.subList(validStartIndex, validStartIndex + Math.min(500, validWindowSize)));
+            }
         }
     }
     
@@ -290,60 +305,60 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                 // If direct deserialization fails, try to extract fields manually
                 System.err.println("Failed to deserialize message directly: " + e.getMessage());
                 
-                // Extract fields from the JSON message
-                JsonNode rootNode = objectMapper.readTree(payload);
-                
-                PerformanceData data = new PerformanceData();
-                
-                // Extract basic fields
-                if (rootNode.has("sequence")) {
-                    data.setSequence(rootNode.get("sequence").asInt());
-                }
-                
-                if (rootNode.has("timestamp")) {
-                    data.setTimestamp(rootNode.get("timestamp").asLong());
-                }
-                
-                if (rootNode.has("tradePrice")) {
-                    data.setTradePrice(rootNode.get("tradePrice").asDouble());
-                }
-                
-                if (rootNode.has("tradeAmount")) {
-                    data.setTradeAmount(rootNode.get("tradeAmount").asDouble());
-                }
-                
-                if (rootNode.has("avgAskPrice")) {
-                    data.setAvgAskPrice(rootNode.get("avgAskPrice").asDouble());
-                }
-                
-                if (rootNode.has("avgAskAmount")) {
-                    data.setAvgAskAmount(rootNode.get("avgAskAmount").asDouble());
-                }
-                
-                if (rootNode.has("avgBidPrice")) {
-                    data.setAvgBidPrice(rootNode.get("avgBidPrice").asDouble());
-                }
-                
-                if (rootNode.has("avgBidAmount")) {
-                    data.setAvgBidAmount(rootNode.get("avgBidAmount").asDouble());
-                }
-                
-                // Extract pretend trade if present
-                if (rootNode.has("pretendTrade") && !rootNode.get("pretendTrade").isNull()) {
-                    JsonNode tradeNode = rootNode.get("pretendTrade");
-                    Trade trade = objectMapper.treeToValue(tradeNode, Trade.class);
-                    data.setPretendTrade(trade);
-                }
-                
-                // Extract trades display data if present
-                if (rootNode.has("tradesDisplayData") && !rootNode.get("tradesDisplayData").isNull()) {
-                    JsonNode displayDataNode = rootNode.get("tradesDisplayData");
-                    FxTradesDisplayData displayData = objectMapper.treeToValue(displayDataNode, FxTradesDisplayData.class);
-                    data.setFxTradesDisplayData(displayData);
-                }
-                
-                // Add the data to the queue for processing
-                dataQueue.offer(data);
+//                // Extract fields from the JSON message
+//                JsonNode rootNode = objectMapper.readTree(payload);
+//
+//                PerformanceData data = new PerformanceData();
+//
+//                // Extract basic fields
+//                if (rootNode.has("sequence")) {
+//                    data.setSequence(rootNode.get("sequence").asInt());
+//                }
+//
+//                if (rootNode.has("timestamp")) {
+//                    data.setTimestamp(rootNode.get("timestamp").asLong());
+//                }
+//
+//                if (rootNode.has("tradePrice")) {
+//                    data.setTradePrice(rootNode.get("tradePrice").asDouble());
+//                }
+//
+//                if (rootNode.has("tradeAmount")) {
+//                    data.setTradeAmount(rootNode.get("tradeAmount").asDouble());
+//                }
+//
+//                if (rootNode.has("avgAskPrice")) {
+//                    data.setAvgAskPrice(rootNode.get("avgAskPrice").asDouble());
+//                }
+//
+//                if (rootNode.has("avgAskAmount")) {
+//                    data.setAvgAskAmount(rootNode.get("avgAskAmount").asDouble());
+//                }
+//
+//                if (rootNode.has("avgBidPrice")) {
+//                    data.setAvgBidPrice(rootNode.get("avgBidPrice").asDouble());
+//                }
+//
+//                if (rootNode.has("avgBidAmount")) {
+//                    data.setAvgBidAmount(rootNode.get("avgBidAmount").asDouble());
+//                }
+//
+//                // Extract pretend trade if present
+//                if (rootNode.has("pretendTrade") && !rootNode.get("pretendTrade").isNull()) {
+//                    JsonNode tradeNode = rootNode.get("pretendTrade");
+//                    Trade trade = objectMapper.treeToValue(tradeNode, Trade.class);
+//                    data.setPretendTrade(trade);
+//                }
+//
+//                // Extract trades display data if present
+//                if (rootNode.has("tradesDisplayData") && !rootNode.get("tradesDisplayData").isNull()) {
+//                    JsonNode displayDataNode = rootNode.get("tradesDisplayData");
+//                    FxTradesDisplayData displayData = objectMapper.treeToValue(displayDataNode, FxTradesDisplayData.class);
+//                    data.setFxTradesDisplayData(displayData);
+//                }
+//
+//                // Add the data to the queue for processing
+//                dataQueue.offer(data);
             }
         } catch (Exception e) {
             System.err.println("Error handling message: " + e.getMessage());
@@ -383,49 +398,31 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     }
     
     /**
-     * Disconnects from the server and cleans up resources.
-     * This method should be called when the application is shutting down.
+     * Disconnect from the server and clean up resources.
      */
     public void disconnect() {
-        try {
-            // Stop processing data
-            processingActive.set(false);
-            
-            // Clear the data queue and dataset
-            dataQueue.clear();
-            completeDataset.clear();
-            
-            // Close the WebSocket session if it's open
-            if (session != null && session.isOpen()) {
-                session.close(CloseStatus.NORMAL);
-                session = null;
-            }
-            
-            // Shutdown the executor services
-            chartUpdater.shutdown();
-            try {
-                if (!chartUpdater.awaitTermination(500, TimeUnit.MILLISECONDS)) {
-                    chartUpdater.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                chartUpdater.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-            
-            executor.shutdown();
-            try {
-                if (!executor.awaitTermination(500, TimeUnit.MILLISECONDS)) {
-                    executor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                executor.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-            
-            window.updateStatus("Disconnected from server");
-        } catch (Exception e) {
-            e.printStackTrace();
-            window.updateStatus("Error during disconnect: " + e.getMessage());
+        if (chartUpdater != null) {
+            chartUpdater.shutdownNow();
+            chartUpdater = null;
         }
+        
+        processingActive.set(false);
+        
+        if (session != null && session.isOpen()) {
+            try {
+                session.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    /**
+     * Checks if the client is connected to the server.
+     * 
+     * @return true if connected, false otherwise
+     */
+    public boolean isConnected() {
+        return session != null && session.isOpen();
     }
 } 

@@ -232,7 +232,7 @@ public class PerformanceTrader {
       case MARKER_SIDE_SELL -> {
         BigDecimal newCurrencyBalance = currentCurrencyBalance.add(
             priceOfTrade.multiply(TRADING_FEE_SELL)).setScale(2, RoundingMode.DOWN);
-        BigDecimal newCoinBalance = currentCoinBalance.subtract(
+        BigDecimal newCoinBalance = currentCoinBalance.subtract(ƒ
             pretendTrade.getAmount()).setScale(8, RoundingMode.DOWN);
             
         // logger.info("SELL Trade - Price: {}, Amount: {}, New Currency: {}, New Coin: {}", 

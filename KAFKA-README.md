@@ -66,3 +66,27 @@ cd /Users/laszlo/dev/code/ib && rm -rf /Users/laszlo/kafka/data/bitso-trades-0/*
 ```
  ~/dev/kafka_2.13-3.7.0/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic bitso-trades --partition 0 --offset 28143 --max-messages 1
 ```
+
+## kafka not able to restart after killing processes:
+
+```
+# check if there are any remaining Kafka or ZooKeeper processes still running:
+ps aux | grep -E "kafka|zookeeper" | grep -v grep
+
+# if zookeeper is still running, use the clean-kafka-zk.sh script to fix the broker registration issue:
+cd scripts && ./clean-kafka-zk.sh
+
+# stop all Kafka and ZooKeeper processes to ensure a clean restart:
+./stop-kafka-zookeeper.sh
+
+# force kill the remaining ZooKeeper process that might still be running:
+pkill -f zookeeper
+
+# check if there are any Kafka processes still running:
+ps aux | grep -E "kafka|zookeeper" | grep -v grep
+
+# kill if needed
+kill -9 17249 10230 2313 90915 86306 81053 75013 69069
+
+# then start as usual
+```

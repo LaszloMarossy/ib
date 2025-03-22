@@ -83,12 +83,36 @@ public class Trade implements Comparable<Trade> {
     return amount;
   }
 
+  /**
+   * Sets the amount of this trade
+   * @param amount the new amount value
+   */
+  public void setAmount(BigDecimal amount) {
+    this.amount = amount;
+  }
+
   public String getMakerSide() {
     return makerSide;
+  }
+  
+  /**
+   * Sets the maker side of this trade (buy/sell)
+   * @param makerSide the new maker side value
+   */
+  public void setMakerSide(String makerSide) {
+    this.makerSide = makerSide;
   }
 
   public BigDecimal getPrice() {
     return price;
+  }
+
+  /**
+   * Sets the price of this trade
+   * @param price new price value
+   */
+  public void setPrice(BigDecimal price) {
+    this.price = price;
   }
 
   public Long getTid() {

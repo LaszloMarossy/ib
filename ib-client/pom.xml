@@ -113,7 +113,9 @@
                             <stripDebug>true</stripDebug>
                             <noHeaderFiles>true</noHeaderFiles>
                             <javaVersion>${java.version}</javaVersion>
-                        </configuration>
+                <compilerArguments>
+                    <Xlint:none/>
+                </compilerArguments>                        </configuration>
                     </execution>
                     <execution>
                         <id>chart-window</id>
@@ -126,7 +128,9 @@
                             <stripDebug>true</stripDebug>
                             <noHeaderFiles>true</noHeaderFiles>
                             <javaVersion>${java.version}</javaVersion>
-                        </configuration>
+                <compilerArguments>
+                    <Xlint:none/>
+                </compilerArguments>                        </configuration>
                     </execution>
                     <execution>
                         <id>performance-window</id>
@@ -139,7 +143,24 @@
                             <stripDebug>true</stripDebug>
                             <noHeaderFiles>true</noHeaderFiles>
                             <javaVersion>${java.version}</javaVersion>
-                        </configuration>
+                <compilerArguments>
+                    <Xlint:none/>
+                </compilerArguments>                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>quick-replay-window</id>
+                        <configuration>
+                            <mainClass>com.ibbe.fx.QuickReplayWindow</mainClass>
+                            <launcher>quick-replay-app</launcher>
+                            <jlinkZipName>quick-replay-app</jlinkZipName>
+                            <jlinkImageName>quick-replay-app</jlinkImageName>
+                            <noManPages>true</noManPages>
+                            <stripDebug>true</stripDebug>
+                            <noHeaderFiles>true</noHeaderFiles>
+                            <javaVersion>${java.version}</javaVersion>
+                <compilerArguments>
+                    <Xlint:none/>
+                </compilerArguments>                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -164,7 +185,9 @@
                                 <descriptorRef>jar-with-dependencies</descriptorRef>
                             </descriptorRefs>
                             <finalName>ibbe-trading</finalName>
-                        </configuration>
+                <compilerArguments>
+                    <Xlint:none/>
+                </compilerArguments>                        </configuration>
                     </execution>
                     <execution>
                         <id>chart-window</id>
@@ -183,7 +206,9 @@
                                 <descriptorRef>jar-with-dependencies</descriptorRef>
                             </descriptorRefs>
                             <finalName>ibbe-chart</finalName>
-                        </configuration>
+                <compilerArguments>
+                    <Xlint:none/>
+                </compilerArguments>                        </configuration>
                     </execution>
                     <execution>
                         <id>performance-window</id>
@@ -211,7 +236,39 @@
                                 <jvmArg>-XX:MaxGCPauseMillis=200</jvmArg>
                                 <jvmArg>-XX:+UseStringDeduplication</jvmArg>
                             </jvmArgs>
-                        </configuration>
+                <compilerArguments>
+                    <Xlint:none/>
+                </compilerArguments>                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>quick-replay-window</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.ibbe.fx.QuickReplayWindow</mainClass>
+                                </manifest>
+                                <manifestEntries>
+                                    <Multi-Release>true</Multi-Release>
+                                </manifestEntries>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                            <finalName>ibbe-quick-replay</finalName>
+                            <appendAssemblyId>true</appendAssemblyId>
+                            <jvmArgs>
+                                <jvmArg>-Xmx1024m</jvmArg>
+                                <jvmArg>-XX:+UseG1GC</jvmArg>
+                                <jvmArg>-XX:MaxGCPauseMillis=200</jvmArg>
+                                <jvmArg>-XX:+UseStringDeduplication</jvmArg>
+                            </jvmArgs>
+                <compilerArguments>
+                    <Xlint:none/>
+                </compilerArguments>                        </configuration>
                     </execution>
                 </executions>
             </plugin>

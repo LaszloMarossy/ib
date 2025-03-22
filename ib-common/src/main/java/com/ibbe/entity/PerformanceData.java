@@ -311,13 +311,78 @@ public class PerformanceData {
         this.SADown = SADown;
     }
 
+    /**
+     * Returns the pretend trade associated with this data point.
+     */
     public Trade getPretendTrade() {
         return pretendTrade;
     }
 
+    /**
+     * Sets the pretend trade for this data point.
+     */
     public void setPretendTrade(Trade pretendTrade) {
         this.pretendTrade = pretendTrade;
     }
+    
+//    /**
+//     * Returns the trade type:
+//     * 1 = BUY
+//     * 2 = SELL
+//     *
+//     * @return 1 for buy trades, 2 for sell trades
+//     */
+//    public int getTradeType() {
+//        if (pretendTrade != null && pretendTrade.getMakerSide() != null) {
+//            if (pretendTrade.getMakerSide().toLowerCase().contains("buy")) {
+//                return 1; // Buy
+//            } else {
+//                return 2; // Sell
+//            }
+//        }
+//        return 0; // Unknown
+//    }
+    
+//    /**
+//     * Returns the price of the pretend trade as a BigDecimal.
+//     *
+//     * @return the pretend trade price or BigDecimal.ZERO if no pretend trade
+//     */
+//    public BigDecimal getPrice() {
+//        if (pretendTrade != null) {
+//            return pretendTrade.getPrice();
+//        }
+//        return BigDecimal.ZERO;
+//    }
+    
+//    /**
+//     * Sets the price of the pretend trade.
+//     * This method is needed for JSON deserialization.
+//     *
+//     * @param price the price to set
+//     */
+//    public void setPrice(BigDecimal price) {
+//        // If this is called during JSON deserialization but no pretend trade exists yet,
+//        // create a new trade to hold the price
+//        if (pretendTrade == null) {
+//            // Initialize with default values
+//            pretendTrade = new Trade("", BigDecimal.ZERO, "buy", price, 0L);
+//        } else {
+//            pretendTrade.setPrice(price);
+//        }
+//    }
+    
+//    /**
+//     * Returns the amount of the pretend trade as a BigDecimal.
+//     *
+//     * @return the pretend trade amount or BigDecimal.ZERO if no pretend trade
+//     */
+//    public BigDecimal getAmount() {
+//        if (pretendTrade != null) {
+//            return pretendTrade.getAmount();
+//        }
+//        return BigDecimal.ZERO;
+//    }
 
     public FxTradesDisplayData getFxTradesDisplayData() {
         return fxTradesDisplayData;
@@ -364,5 +429,41 @@ public class PerformanceData {
             this.priceCloserToBestAsk = value.doubleValue();
         }
     }
+
+//    /**
+//     * Sets the amount of the pretend trade.
+//     * This method is needed for JSON deserialization.
+//     *
+//     * @param amount the amount to set
+//     */
+//    public void setAmount(BigDecimal amount) {
+//        // If this is called during JSON deserialization but no pretend trade exists yet,
+//        // create a new trade to hold the amount
+//        if (pretendTrade == null) {
+//            // Initialize with default values
+//            pretendTrade = new Trade("", amount, "buy", BigDecimal.ZERO, 0L);
+//        } else {
+//            pretendTrade.setAmount(amount);
+//        }
+//    }
+//
+//    /**
+//     * Sets the trade type (buy/sell) of the pretend trade.
+//     * This method is needed for JSON deserialization.
+//     *
+//     * @param tradeType the trade type to set (1 for buy, 2 for sell)
+//     */
+//    public void setTradeType(int tradeType) {
+//        // If this is called during JSON deserialization but no pretend trade exists yet,
+//        // create a new trade to hold the trade type
+//        if (pretendTrade == null) {
+//            // Initialize with default values and appropriate maker side
+//            String makerSide = (tradeType == 1) ? "buy" : "sell";
+//            pretendTrade = new Trade("", BigDecimal.ZERO, makerSide, BigDecimal.ZERO, 0L);
+//        } else {
+//            // Update the maker side based on the trade type
+//            pretendTrade.setMakerSide((tradeType == 1) ? "buy" : "sell");
+//        }
+//    }
 
 } 
