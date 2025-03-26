@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
  * the exchange rate API very infrequently to conserve API quota.
  */
 @Component
-public class XchangeRatePoller extends AsyncExecutor implements ApplicationListener<ApplicationReadyEvent> {
+public class XchangeRatePoller implements ApplicationListener<ApplicationReadyEvent> {
 
   private static XchangeRatePoller xchangeRatePoller;
 

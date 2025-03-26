@@ -22,7 +22,7 @@ import java.util.concurrent.Executors;
  * - called by ServletInitializer.
  */
 @Component
-public class BitsoOrderbookPoller extends AsyncExecutor implements ApplicationListener<ApplicationReadyEvent> {
+public class BitsoOrderbookPoller implements ApplicationListener<ApplicationReadyEvent> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(BitsoOrderbookPoller.class.getName());
   @Value("${poller.interval.orderbook}")

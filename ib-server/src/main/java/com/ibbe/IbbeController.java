@@ -87,7 +87,7 @@ public class IbbeController {
   public String getExecutorInfo(@PathVariable("id") String id) throws Exception {
       // this returns right away to the REST caller
       FxTradesDisplayData dd = traderFactory.getTraderDisplayData(id);
-      return "trader " + id + " account value: $" + dd.calculateAccountValue()
-          + " with profit $" + dd.calculateProfit();
+      return "trader " + id + " account value: $" + dd.getAccountValue()
+          + " with profit $" + dd.getProfit();
   }
 }

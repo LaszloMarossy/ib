@@ -2,6 +2,8 @@ package com.ibbe.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ibbe.util.PropertiesUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -13,6 +15,7 @@ import java.util.ArrayList;
  */
 public class FxTradesDisplayData {
 
+  private static final Logger log = LoggerFactory.getLogger(FxTradesDisplayData.class);
   // trade balance values
   private BigDecimal currencyBalance;
   private BigDecimal coinBalance;
@@ -35,9 +38,9 @@ public class FxTradesDisplayData {
     this.latestPrice = latestPrice != null ? latestPrice : BigDecimal.ZERO;
     this.recentTrades = recentTrades != null ? recentTrades : new ArrayList<>();
     // derives from coin an currency balance..
-    this.startingAccountValue = calculateAccountValue();
-    this.accountValue = startingAccountValue;
-    this.profit = calculateProfit();
+//    this.startingAccountValue = calculateAccountValue();
+//    this.accountValue = startingAccountValue;
+//    this.profit = new BigDecimal(0);
   }
 
   public ArrayList<Trade> getRecentTrades() {
@@ -65,7 +68,7 @@ public class FxTradesDisplayData {
 
   public void setCurrencyBalance(BigDecimal currencyBalance) {
     this.currencyBalance = currencyBalance;
-    this.profit = calculateProfit();
+//    this.profit = calculateProfit();
   }
 
   public BigDecimal getCoinBalance() {
@@ -74,7 +77,7 @@ public class FxTradesDisplayData {
 
   public void setCoinBalance(BigDecimal coinBalance) {
     this.coinBalance = coinBalance;
-    this.profit = calculateProfit();
+//    this.profit = calculateProfit();
   }
 
   public BigDecimal getLatestPrice() {
@@ -86,22 +89,6 @@ public class FxTradesDisplayData {
     // Don't recalculate profit when only the price changes
     // Profit should only change when balances change (i.e., when trades occur)
     // this.profit = calculateProfit();
-  }
-
-  public BigDecimal calculateAccountValue() {
-    if (coinBalance == null || latestPrice == null || currencyBalance == null) {
-      return BigDecimal.ZERO;
-    }
-    accountValue = coinBalance.multiply(latestPrice).add(currencyBalance).setScale(2, RoundingMode.DOWN);
-    return accountValue;
-  }
-
-  public BigDecimal calculateProfit() {
-    BigDecimal currentValue = calculateAccountValue();
-    if (startingAccountValue == null) {
-      return BigDecimal.ZERO;
-    }
-    return currentValue.subtract(startingAccountValue).setScale(2, RoundingMode.DOWN);
   }
 
   public BigDecimal getStartingAccountValue() {
@@ -119,5 +106,11 @@ public class FxTradesDisplayData {
   public BigDecimal getAccountValue() {
     return accountValue;
   }
+
+  public void setAccountValue(BigDecimal accountValue) {
+    this.accountValue = accountValue;
+  }
+
+
 
 }

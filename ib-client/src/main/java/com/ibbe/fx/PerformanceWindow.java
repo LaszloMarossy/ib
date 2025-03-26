@@ -1306,6 +1306,8 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
                 // Initialize running balances
                 BigDecimal runningCurrency = startCurrency;
                 BigDecimal runningCoin = startCoin;
+                BigDecimal runningProfit = new BigDecimal(0);
+
                 
                 // Process ONLY pretend trades
                 for (PerformanceData dp : pretendTradePointsOnly) {
@@ -1321,19 +1323,21 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
                     BigDecimal tradePrice = dp.getPretendTrade().getPrice();
                     BigDecimal tradeAmount = dp.getPretendTrade().getAmount();
                     BigDecimal tradeValue = tradePrice.multiply(tradeAmount);
-                    
+                    runningCurrency = dp.getFxTradesDisplayData().getCurrencyBalance();
+                    runningCoin = dp.getFxTradesDisplayData().getCoinBalance();
+                    runningProfit = dp.getFxTradesDisplayData().getProfit();
                     // Update running balances
-                    if (isBuy) { // Buy
-                        runningCurrency = runningCurrency.subtract(tradeValue);
-                        runningCoin = runningCoin.add(tradeAmount);
-                    } else { // Sell
-                        runningCurrency = runningCurrency.add(tradeValue);
-                        runningCoin = runningCoin.subtract(tradeAmount);
-                    }
+//                    if (isBuy) { // Buy
+//                        runningCurrency = runningCurrency.subtract(tradeValue);
+//                        runningCoin = runningCoin.add(tradeAmount);
+//                    } else { // Sell
+//                        runningCurrency = runningCurrency.add(tradeValue);
+//                        runningCoin = runningCoin.subtract(tradeAmount);
+//                    }
                     
                     // Calculate profit
-                    BigDecimal currentValue = runningCurrency.add(runningCoin.multiply(tradePrice));
-                    BigDecimal profit = currentValue.subtract(startCurrency);
+//                    BigDecimal currentValue = runningCurrency.add(runningCoin.multiply(tradePrice));
+//                    BigDecimal profit = currentValue.subtract(startCurrency);
                     
                     // Create trade row
                     HBox row = new HBox(5);
@@ -1363,9 +1367,9 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
                     Label balCoinLabel = new Label(runningCoin.toPlainString());
                     balCoinLabel.setPrefWidth(80);
                     
-                    Label profitLabel = new Label(profit.toPlainString());
+                    Label profitLabel = new Label(runningProfit.toPlainString());
                     profitLabel.setPrefWidth(80);
-                    profitLabel.setTextFill(profit.compareTo(BigDecimal.ZERO) >= 0 ? Color.GREEN : Color.RED);
+                    profitLabel.setTextFill(runningProfit.compareTo(BigDecimal.ZERO) >= 0 ? Color.GREEN : Color.RED);
                     
                     // Add cells to row
                     row.getChildren().addAll(
@@ -1375,6 +1379,7 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
                     
                     // Add row to container
                     tradeDataContainer.getChildren().add(row);
+//                    runningProfit = dp.getFxTradesDisplayData().getProfit();
                 }
                 
                 // Update balance display if we have any pretend trades
@@ -1382,10 +1387,10 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
                     PerformanceData lastPoint = pretendTradePointsOnly.get(pretendTradePointsOnly.size() - 1);
                     BigDecimal lastPrice = lastPoint.getPretendTrade().getPrice();
                     
-                    BigDecimal finalValue = runningCurrency.add(runningCoin.multiply(lastPrice));
-                    BigDecimal finalProfit = finalValue.subtract(startCurrency);
-                    
-                    updateBalanceDisplay(runningCurrency, runningCoin, finalProfit);
+//                    BigDecimal finalValue = runningCurrency.add(runningCoin.multiply(lastPrice));
+//                    BigDecimal runningProfit = finalValue.subtract(startCurrency);
+
+                    updateBalanceDisplay(runningCurrency, runningCoin, runningProfit);
                 }
                 
                 // Set the trade history content
