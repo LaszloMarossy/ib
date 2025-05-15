@@ -7,7 +7,6 @@ import com.ibbe.entity.OrderBookPayload;
 import com.ibbe.entity.PerformanceData;
 import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeConfig;
-import org.apache.kafka.shaded.com.google.protobuf.StringValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
@@ -77,10 +76,17 @@ public class LiveTrader extends BasicTrader implements PropertyChangeListener {
       Trade trade = ((Trade) evt.getNewValue());
       OrderBookPayload orderBook = bitsoDataAggregator.getOrderbookPayload();
       PerformanceData performanceData = makeTradeDecision(trade, orderBook);
+      logger.info("$$$$$$>>>>> " + id + " >> " + (performanceData.getPretendTrade() == null));
+
+      // if there is no starting account value yet, calculate and set
+      if (BigDecimal.ZERO.equals(fxTradesDisplayData.getStartingAccountValue())) {
+        fxTradesDisplayData.setStartingAccountValue(calculateAccountValue());
+      }
 
       if (performanceData.getPretendTrade() != null) {
         tradeFollowUp(performanceData.getPretendTrade());
       }
+      updateDisplay(fxTradesDisplayData);
 
 //      logger.info("trade event " + trade.getTid() + " from " + trade.getPrice());
 //      if (trade.getNthStatus().equals(TICK_DOWN.toString() + downN) && trade.getTick().equals(TICK_DOWN)) {
@@ -102,7 +108,7 @@ public class LiveTrader extends BasicTrader implements PropertyChangeListener {
    */
   private void tradeFollowUp(Trade pretendTrade) {
     logger.info("$$$$$$$$$$ " + id + " >> " + pretendTrade.getTid());
-    fxTradesDisplayData.addRecentTradeWs(pretendTrade);
+    fxTradesDisplayData.addRecentTrade(pretendTrade);
 //    pretendTrades.add(pretendTrade);
 //    updateBalances(pretendTrade);
   }
@@ -113,7 +119,7 @@ public class LiveTrader extends BasicTrader implements PropertyChangeListener {
    */
   public void refreshDisplayWithNewTrade(Trade trade) {
     if (trade != null) {
-      fxTradesDisplayData.addRecentTradeWs(trade);
+      fxTradesDisplayData.addRecentTrade(trade);
       // IMPORTANT: No conversion needed as the price is already in USD
       BigDecimal latestPrice = trade.getPrice();
       logger.info("Trade ID: {} - Setting latest price to: {} USD", trade.getTid(), latestPrice);
@@ -126,7 +132,9 @@ public class LiveTrader extends BasicTrader implements PropertyChangeListener {
    * @return A TradeConfig object with the current configuration values
    */
   public TradeConfig getTradeConfig() {
-    return new TradeConfig(id, String.valueOf(upN), String.valueOf(downN));
+    return new TradeConfig(
+        id, String.valueOf(upN), String.valueOf(downN), useAvgBidVsAvgAsk, useShortVsLongMovAvg,
+        useSumAmtUpVsDown, useTradePriceCloserToAskVsBuy);
   }
 
   public FxTradesDisplayData getFxTradesDisplayData() {

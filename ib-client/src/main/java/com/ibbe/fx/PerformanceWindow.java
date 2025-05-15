@@ -21,6 +21,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.CheckBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -52,7 +53,7 @@ import java.util.Comparator;
  * - connects to the server to analyze performance of a given configuration
  * - displays a chart of trade prices, average ask prices, and average bid prices
  */
-public class PerformanceWindow extends Application implements PerformanceWindowInterface {
+public class PerformanceWindow extends TradeConfigWindow implements PerformanceWindowInterface {
 
     // mode of run depending on which button they push
     private int mode = 1;
@@ -89,10 +90,9 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
     private XYChart.Series<String, Number> avgAskAmountSeries = new XYChart.Series<>();
     private XYChart.Series<String, Number> avgBidAmountSeries = new XYChart.Series<>();
     
-    private TextField upsField = new TextField();
-    private TextField downsField = new TextField();
     private Button visualReplayButton = new Button("Visual Replay");
-//    private Button quickReplayButton = new Button("Quick Replay");
+    
+
     private Label statusLabel = new Label("Status: Ready");
     private ScrollPane chartScrollPane;
     private Slider timeSlider;
@@ -154,7 +154,8 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
     }
     
     @Override
-    public void start(Stage primaryStage) {
+    public void start(Stage primaryStage) throws Exception {
+        super.start(primaryStage);
         // Store the primaryStage reference for use in setupChartControls
         this.primaryStage = primaryStage;
         
@@ -308,12 +309,7 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
             }
         });
         
-        // Set up input fields
-        upsField.setText(PropertiesUtil.getProperty("trade.up_m"));
-        downsField.setText(PropertiesUtil.getProperty("trade.down_n"));
-        upsField.setPrefWidth(100);
-        downsField.setPrefWidth(100);
-        
+
         // Set up labels
         Label upsLabel = new Label("Ups:");
         Label downsLabel = new Label("Downs:");
@@ -324,9 +320,6 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
         visualReplayButton.setPrefSize(250, 30);
         visualReplayButton.setFont(new Font("Arial", 14));
         visualReplayButton.setOnAction(event -> startPerformanceAnalysis());
-//        quickReplayButton.setPrefSize(250, 30);
-//        quickReplayButton.setFont(new Font("Arial", 14));
-//        quickReplayButton.setOnAction(event -> startQuickReplayAnalysis());
         
         // Set up status label
         statusLabel.setFont(new Font("Arial", 14));
@@ -335,11 +328,38 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
         dataSummaryLabel.setFont(new Font("Arial", 14));
         dataSummaryLabel.setStyle("-fx-font-weight: bold;");
         
+        // Set default values for checkboxes (initially unchecked)
+        avgBidVsAvgAskCheckBox.setSelected(false);
+        shortVsLongMovAvgCheckBox.setSelected(false);
+        sumAmtUpVsDownCheckBox.setSelected(false);
+        tradePriceCloserToAskVsBuyCheckBox.setSelected(false);
+        
+        // Add tooltips to explain each option
+        avgBidVsAvgAskCheckBox.setTooltip(new Tooltip("Use average bid amount vs average ask amount in trading decisions"));
+        shortVsLongMovAvgCheckBox.setTooltip(new Tooltip("Use short-term moving average vs long-term moving average in trading decisions"));
+        sumAmtUpVsDownCheckBox.setTooltip(new Tooltip("Use sum of amounts for up trades vs down trades in trading decisions"));
+        tradePriceCloserToAskVsBuyCheckBox.setTooltip(new Tooltip("Use trade price closer to best ask vs best bid in trading decisions"));
+        
         // Create input layout
         HBox inputBox = new HBox(10, upsLabel, upsField, downsLabel, downsField, visualReplayButton);
-
         inputBox.setAlignment(Pos.CENTER);
         inputBox.setPadding(new Insets(10));
+        
+        // Create a box for trading criteria checkboxes
+        Label criteriaLabel = new Label("Trading Criteria:");
+        criteriaLabel.setFont(new Font("Arial", 12));
+        criteriaLabel.setStyle("-fx-font-weight: bold;");
+        
+        HBox criteriaBox = new HBox(15);
+        criteriaBox.getChildren().addAll(
+            criteriaLabel,
+            avgBidVsAvgAskCheckBox, 
+            shortVsLongMovAvgCheckBox, 
+            sumAmtUpVsDownCheckBox, 
+            tradePriceCloserToAskVsBuyCheckBox
+        );
+        criteriaBox.setAlignment(Pos.CENTER_LEFT);
+        criteriaBox.setPadding(new Insets(0, 10, 10, 10));
         
         // Create a container for the version label and status label
         HBox statusBox = new HBox(10);
@@ -542,7 +562,7 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
         tradeHistoryBox.setAlignment(Pos.CENTER);
         
         // Update the root VBox to include the new dataSummaryBox
-        VBox root = new VBox(10, inputBox, statusBox, balanceBox, dataSummaryBox, tradeHistoryBox, chartsBox, sliderBox);
+        VBox root = new VBox(10, inputBox, criteriaBox, statusBox, balanceBox, dataSummaryBox, tradeHistoryBox, chartsBox, sliderBox);
         root.setPadding(new Insets(10));
         VBox.setVgrow(chartsBox, Priority.ALWAYS);  // Allow charts box to grow vertically
         
@@ -1476,162 +1496,16 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
     }
     
     /**
-     * Starts the performance analysis by connecting to the server.
-     * This is for Visual Replay mode.
+     * Starts the performance analysis with the given parameters.
      */
     private void startPerformanceAnalysis() {
-        // Reset mode to visual replay
-        mode = 1;
-        
-        // Disconnect existing client to free resources
-        if (performanceClient != null) {
-            performanceClient.disconnect();
-            performanceClient = null;
-        }
-        
-        // Update UI to reflect change to visual replay mode
-        statusLabel.setText("Connecting to server...");
-        
-        // Enable controls for visual replay
-        timeSlider.setDisable(false);
-        liveButton.setDisable(false);
-        
-        // Reset charts
-        clearChart();
-        applySeriesStyles();
-        
-        // Create a parent for the trade history if it exists, otherwise get existing parent
-        VBox tradeHistoryParent = (VBox) tradeHistoryScrollPane.getParent();
-        if (tradeHistoryParent == null) {
-            System.err.println("Trade history parent is null, cannot update trade history");
-            return;
-        }
-        
-        // Get the header box if it exists (should be the first child of the parent)
-        HBox headerBox = null;
-        if (tradeHistoryParent.getChildren().size() > 0 && 
-            tradeHistoryParent.getChildren().get(0) instanceof HBox) {
-            headerBox = (HBox) tradeHistoryParent.getChildren().get(0);
-        }
-        
-        // Clear all children from tradeHistoryParent to avoid duplicates
-        tradeHistoryParent.getChildren().clear();
-        
-        // Create a new VBox for trade data
-        VBox scrollContent = new VBox(5);
-        
-        // Add a placeholder
-        HBox placeholderRow = new HBox();
-        placeholderRow.setPadding(new Insets(10, 5, 5, 5));
-        
-        Label placeholder = new Label("No trades yet - Trades will appear here when executed");
-        placeholder.setStyle("-fx-text-fill: #888888;");
-        placeholderRow.getChildren().add(placeholder);
-        scrollContent.getChildren().add(placeholderRow);
-        
-        // Create a new scroll pane
-        ScrollPane newTradeHistoryScrollPane = new ScrollPane(scrollContent);
-        newTradeHistoryScrollPane.setFitToWidth(true);
-        newTradeHistoryScrollPane.setPrefHeight(300); // Increased height for Quick Replay
-        
-        // Update our reference to the new scroll pane
-        tradeHistoryScrollPane = newTradeHistoryScrollPane;
-        
-        // Recreate and add the header box first if needed
-        if (headerBox != null) {
-            // Create headers for a fixed position above the scroll pane
-            HBox newHeaderBox = new HBox(10);
-            newHeaderBox.setPadding(new Insets(5, 5, 5, 5));
-            newHeaderBox.setStyle("-fx-border-color: #cccccc; -fx-border-width: 0 0 1 0; -fx-background-color: #f0f0f0;");
-            
-            // Create and style column headers
-            Label dateHeader = new Label("Date");
-            dateHeader.setPrefWidth(150);
-            dateHeader.setStyle("-fx-font-weight: bold;");
-            
-            Label typeHeader = new Label("Type");
-            typeHeader.setPrefWidth(60);
-            typeHeader.setStyle("-fx-font-weight: bold;");
-            
-            Label priceHeader = new Label("Price");
-            priceHeader.setPrefWidth(100);
-            priceHeader.setStyle("-fx-font-weight: bold;");
-            
-            Label amtHeader = new Label("Amount");
-            amtHeader.setPrefWidth(100);
-            amtHeader.setStyle("-fx-font-weight: bold;");
-            
-            Label seqHeader = new Label("Seq");
-            seqHeader.setPrefWidth(60);
-            seqHeader.setStyle("-fx-font-weight: bold;");
-            
-            Label balUsdHeader = new Label("Bal$$$");
-            balUsdHeader.setPrefWidth(100);
-            balUsdHeader.setStyle("-fx-font-weight: bold;");
-            
-            Label balCoinHeader = new Label("BalC");
-            balCoinHeader.setPrefWidth(100);
-            balCoinHeader.setStyle("-fx-font-weight: bold;");
-            
-            Label profitHeader = new Label("Profit");
-            profitHeader.setPrefWidth(100);
-            profitHeader.setStyle("-fx-font-weight: bold;");
-            
-            newHeaderBox.getChildren().addAll(
-                dateHeader, typeHeader, priceHeader, amtHeader,
-                seqHeader, balUsdHeader, balCoinHeader, profitHeader
-            );
-            
-            tradeHistoryParent.getChildren().add(newHeaderBox);
-        }
-        
-        // Add new scroll pane to parent
-        tradeHistoryParent.getChildren().add(tradeHistoryScrollPane);
-        
-        // Force garbage collection to free memory
-        System.gc();
-        
-        // Create a new client and start the analysis
-        performanceClient = new PerformanceAnalysisClient(this);
-        String ups = upsField.getText().isEmpty() ? "0" : upsField.getText();
-        String downs = downsField.getText().isEmpty() ? "0" : downsField.getText();
-        performanceClient.startPerformanceAnalysis(ups, downs);
+        // Call the more specific method with default values
+        startPerformanceAnalysis(
+            upsField.getText().isEmpty() ? "0" : upsField.getText(),
+            downsField.getText().isEmpty() ? "0" : downsField.getText()
+        );
     }
     
-    // Add a new method to handle the parameterized performance analysis
-    /**
-     * Starts performance analysis with specific ups/downs configuration.
-     * This method is especially useful when transitioning from Quick Replay back to Visual Replay.
-     */
-    private void startPerformanceAnalysis(String ups, String downs) {
-        // Reset mode to visual replay (mode 1)
-        mode = 1;
-        
-        // Disconnect from any existing sessions
-        if (performanceClient != null) {
-            performanceClient.disconnect();
-        }
-        
-        // Reset the view
-        statusLabel.setText("Connecting to server...");
-        
-        // CRITICAL: Re-enable controls when starting from Quick Replay
-        // This ensures the time slider works correctly after Quick Replay
-        timeSlider.setDisable(false);
-        liveButton.setDisable(false);
-        
-        // Reset trade history to default size
-        tradeHistoryScrollPane.setPrefHeight(180);
-        
-        // Create a new client and start the analysis
-        performanceClient = new PerformanceAnalysisClient(this);
-        performanceClient.startPerformanceAnalysis(ups, downs);
-        
-        // Run garbage collection to free memory after a replay
-        System.gc();
-    }
-    
-
     /**
      * Updates the status label with a message.
      * 
@@ -1876,5 +1750,167 @@ public class PerformanceWindow extends Application implements PerformanceWindowI
     @Override
     public void updateTradeHistory(List<PerformanceData> windowData) {
         updateTradeHistoryFromWindow(windowData);
+    }
+    
+    /**
+     * Starts a visual performance analysis with all the UI setup
+     */
+    private void startPerformanceAnalysis(String ups, String downs) {
+        // Reset mode to visual replay (mode 1)
+        mode = 1;
+        
+        // Store the current configuration ID before creating a new client
+        final String oldConfigId = getCurrentConfigId();
+        
+        // Disconnect from any existing sessions
+        if (performanceClient != null) {
+            if (performanceClient.isConnected()) {
+                performanceClient.disconnect();
+            }
+            
+            // Explicitly remove the old configuration ID if it exists
+            if (oldConfigId != null && !oldConfigId.isEmpty()) {
+                updateStatus("Removing previous configuration: " + oldConfigId + "...");
+                
+                // Create a temporary client just to remove the old configuration
+                PerformanceAnalysisClient tempClient = new PerformanceAnalysisClient(this);
+                tempClient.endPerformanceAnalysis(oldConfigId);
+                
+                // Allow some time for the server to process the removal
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    // Ignore interruption
+                }
+            }
+            
+            // Release the client for garbage collection
+            performanceClient = null;
+        }
+        
+        // Clear the current configuration ID
+        setCurrentConfigId(null);
+        
+        // Reset the view
+        statusLabel.setText("Connecting to server...");
+        
+        // CRITICAL: Re-enable controls when starting from Quick Replay
+        timeSlider.setDisable(false);
+        liveButton.setDisable(false);
+        
+        // Reset chart data and UI elements
+        clearChart();
+        synchronized (dataPoints) {
+            dataPoints.clear();
+        }
+        
+        // Ensure the trade history is visible
+        tradeHistoryVisible = true;
+        tradeHistoryScrollPane.setVisible(true);
+        tradeHistoryScrollPane.setManaged(true);
+        toggleTradeHistoryButton.setText("Hide Trade History");
+        
+        // Reset balance displays
+        startingCurrencyBalance = null;
+        startingCoinBalance = null;
+        currentCurrencyBalance = BigDecimal.ZERO;
+        currentCoinBalance = BigDecimal.ZERO;
+        
+        // Reset trade history to default size
+        tradeHistoryScrollPane.setPrefHeight(180);
+        
+        // Ensure the chart headers are visible
+        VBox tradeHistoryParent = (VBox) tradeHistoryScrollPane.getParent();
+        if (tradeHistoryParent != null) {
+            tradeHistoryParent.getChildren().clear();
+            
+            // Create a fixed header (outside the scrollable area)
+            HBox newHeaderBox = new HBox(5);
+            newHeaderBox.setPadding(new Insets(5, 5, 5, 5));
+            newHeaderBox.setStyle("-fx-background-color: #f0f0f0; -fx-border-color: #dddddd; -fx-border-width: 0 0 1 0;");
+            
+            // Create column headers with same widths as data rows will use
+            Label dateHeader = new Label("Date");
+            dateHeader.setPrefWidth(150);
+            dateHeader.setStyle("-fx-font-weight: bold;");
+            
+            Label typeHeader = new Label("Type");
+            typeHeader.setPrefWidth(60);
+            typeHeader.setStyle("-fx-font-weight: bold;");
+            
+            Label priceHeader = new Label("Price");
+            priceHeader.setPrefWidth(100);
+            priceHeader.setStyle("-fx-font-weight: bold;");
+            
+            Label amtHeader = new Label("Amount");
+            amtHeader.setPrefWidth(100);
+            amtHeader.setStyle("-fx-font-weight: bold;");
+            
+            Label seqHeader = new Label("Seq");
+            seqHeader.setPrefWidth(60);
+            seqHeader.setStyle("-fx-font-weight: bold;");
+            
+            Label balUsdHeader = new Label("Bal$");
+            balUsdHeader.setPrefWidth(100);
+            balUsdHeader.setStyle("-fx-font-weight: bold;");
+            
+            Label balCoinHeader = new Label("BalC");
+            balCoinHeader.setPrefWidth(100);
+            balCoinHeader.setStyle("-fx-font-weight: bold;");
+            
+            Label profitHeader = new Label("Profit");
+            profitHeader.setPrefWidth(100);
+            profitHeader.setStyle("-fx-font-weight: bold;");
+            
+            // Add headers to the header box
+            newHeaderBox.getChildren().addAll(
+                dateHeader, typeHeader, priceHeader, amtHeader,
+                seqHeader, balUsdHeader, balCoinHeader, profitHeader
+            );
+            
+            tradeHistoryParent.getChildren().add(newHeaderBox);
+        }
+        
+        // Add new scroll pane to parent
+        if (tradeHistoryParent != null) {
+            tradeHistoryParent.getChildren().add(tradeHistoryScrollPane);
+        }
+        
+        // Reset sequence counter
+        resetSequence();
+        
+        // Force garbage collection to free memory
+        System.gc();
+        
+        // Create a new client and start the analysis with default criteria values
+        performanceClient = new PerformanceAnalysisClient(this);
+        performanceClient.startPerformanceAnalysis(
+            ups, downs, 
+            avgBidVsAvgAskCheckBox.isSelected(), 
+            shortVsLongMovAvgCheckBox.isSelected(),
+            sumAmtUpVsDownCheckBox.isSelected(),
+            tradePriceCloserToAskVsBuyCheckBox.isSelected()
+        );
+        
+        // Create a timer to retrieve the config ID once it's generated on the server
+        Timer configIdTimer = new Timer(true);
+        configIdTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (performanceClient != null && performanceClient.isConnected()) {
+                    String configId = performanceClient.getCurrentConfigId();
+                    if (configId != null && !configId.isEmpty()) {
+                        // Store the configuration ID generated by the server
+                        setCurrentConfigId(configId);
+                        this.cancel(); // Stop the timer once we have the ID
+                    }
+                } else {
+                    this.cancel(); // Stop the timer if client disconnected
+                }
+            }
+        }, 1000, 1000); // Check every second until we get the ID
+        
+        // Run garbage collection to free memory after a replay
+        System.gc();
     }
 }

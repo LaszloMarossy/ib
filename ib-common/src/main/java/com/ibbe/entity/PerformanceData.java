@@ -4,6 +4,8 @@ import com.ibbe.util.PropertiesUtil;
 
 import java.math.BigDecimal;
 import java.util.Deque;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Entity class for performance analysis data.
@@ -48,6 +50,18 @@ public class PerformanceData {
 
     // to keep balances and profit
     private FxTradesDisplayData fxTradesDisplayData;
+    
+    // List of profits from previous trading chunks
+    private List<BigDecimal> chunkProfits = new ArrayList<>();
+    
+    // List of detailed chunk information
+    private List<ChunkInfo> chunks = new ArrayList<>();
+    
+    // Current chunk information
+    private ChunkInfo currentChunk;
+    
+    // Total number of chunks that exist (may be more than what's in the chunks list)
+    private int totalChunkCount;
 
     // keeping configured constants for long/short term moving average calc
     public int ltma, stma;
@@ -56,6 +70,22 @@ public class PerformanceData {
 
     // Default constructor
     public PerformanceData() {
+        // short/long term moving average
+        this.STMAPrice = 0.0;
+        this.LTMAPrice = 0.0;
+        // sum of amounts up/down
+        this.SAUp = 0.0;
+        this.SADown = 0.0;
+        // position relative to averages
+        this.priceCloserToBestAsk = 0.0;
+
+        // get from config what is long vs short term
+        String stmaStr = PropertiesUtil.getProperty("stma");
+        String ltmaStr = PropertiesUtil.getProperty("ltma");
+        
+        // Default to 5 for stma and 20 for ltma if properties are not set
+        this.stma = stmaStr != null ? Integer.parseInt(stmaStr) : 5;
+        this.ltma = ltmaStr != null ? Integer.parseInt(ltmaStr) : 20;
     }
 
     // Constructor with all fields
@@ -93,9 +123,12 @@ public class PerformanceData {
         this.priceCloserToBestAsk = 0.0;
 
         // get from config what is long vs short term
-        this.stma = Integer.parseInt(PropertiesUtil.getProperty("stma"));
-        this.ltma = Integer.parseInt(PropertiesUtil.getProperty("ltma"));
-
+        String stmaStr = PropertiesUtil.getProperty("stma");
+        String ltmaStr = PropertiesUtil.getProperty("ltma");
+        
+        // Default to 5 for stma and 20 for ltma if properties are not set
+        this.stma = stmaStr != null ? Integer.parseInt(stmaStr) : 5;
+        this.ltma = ltmaStr != null ? Integer.parseInt(ltmaStr) : 20;
     }
 
 
@@ -465,5 +498,58 @@ public class PerformanceData {
 //            pretendTrade.setMakerSide((tradeType == 1) ? "buy" : "sell");
 //        }
 //    }
+
+    public List<BigDecimal> getChunkProfits() {
+        return chunkProfits;
+    }
+    
+    public void setChunkProfits(List<BigDecimal> chunkProfits) {
+        this.chunkProfits = chunkProfits;
+    }
+
+    /**
+     * Gets the list of detailed chunk information
+     * 
+     * @return List of chunk information objects
+     */
+    public List<ChunkInfo> getChunks() {
+        return chunks;
+    }
+    
+    /**
+     * Sets the list of detailed chunk information
+     * 
+     * @param chunks List of chunk information objects
+     */
+    public void setChunks(List<ChunkInfo> chunks) {
+        this.chunks = chunks;
+    }
+    
+    /**
+     * Gets information about the current trading chunk
+     * 
+     * @return Current chunk information
+     */
+    public ChunkInfo getCurrentChunk() {
+        return currentChunk;
+    }
+    
+    /**
+     * Sets information about the current trading chunk
+     * 
+     * @param currentChunk Current chunk information
+     */
+    public void setCurrentChunk(ChunkInfo currentChunk) {
+        this.currentChunk = currentChunk;
+    }
+
+    // Getter and setter for totalChunkCount
+    public int getTotalChunkCount() {
+        return totalChunkCount;
+    }
+    
+    public void setTotalChunkCount(int totalChunkCount) {
+        this.totalChunkCount = totalChunkCount;
+    }
 
 } 

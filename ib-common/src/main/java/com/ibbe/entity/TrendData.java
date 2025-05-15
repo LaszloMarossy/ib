@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.time.Instant;
 
 /**
  * Entity class for maintaining trend data for trading analysis.
@@ -34,6 +35,9 @@ public class TrendData implements Serializable {
     // Last price for comparison
     private BigDecimal lastPrice;
     
+    // Last trade timestamp (to detect gaps)
+    private Instant lastTradeTimestamp;
+    
     /**
      * Default constructor with default queue size (20)
      */
@@ -54,6 +58,7 @@ public class TrendData implements Serializable {
         this.askAmountsQueue = new ArrayDeque<>(queueSize);
         
         this.lastPrice = null;
+        this.lastTradeTimestamp = null;
     }
     
     /**
@@ -111,6 +116,15 @@ public class TrendData implements Serializable {
     }
     
     /**
+     * Updates the timestamp of the most recent trade
+     * 
+     * @param timestamp the timestamp of the current trade
+     */
+    public void updateTimestamp(Instant timestamp) {
+        this.lastTradeTimestamp = timestamp;
+    }
+    
+    /**
      * Gets the newest (most recent) trade price (at index 0)
      * @return the most recent trade price or null if queue is empty
      */
@@ -124,6 +138,18 @@ public class TrendData implements Serializable {
      */
     public BigDecimal getOldestTradePrice() {
         return tradePricesQueue.isEmpty() ? null : tradePricesQueue.getLast();
+    }
+    
+    /**
+     * Clears all data in the trend queues
+     */
+    public void clear() {
+        tradePricesQueue.clear();
+        tradeAmountsQueue.clear();
+        bidAmountsQueue.clear();
+        askAmountsQueue.clear();
+        lastPrice = null;
+        lastTradeTimestamp = null;
     }
     
     // Getters and setters
@@ -144,7 +170,6 @@ public class TrendData implements Serializable {
         return askAmountsQueue;
     }
     
-
     public int getMaxQueueSize() {
         return maxQueueSize;
     }
@@ -152,8 +177,10 @@ public class TrendData implements Serializable {
     public BigDecimal getLastPrice() {
         return lastPrice;
     }
-
-
+    
+    public Instant getLastTradeTimestamp() {
+        return lastTradeTimestamp;
+    }
     
     @Override
     public String toString() {
@@ -163,6 +190,7 @@ public class TrendData implements Serializable {
                 ", tradeAmountsQueueSize=" + tradeAmountsQueue.size() +
                 ", bidAmountsQueueSize=" + bidAmountsQueue.size() +
                 ", askAmountsQueueSize=" + askAmountsQueue.size() +
+                ", lastTradeTimestamp=" + lastTradeTimestamp +
                 '}';
     }
 } 

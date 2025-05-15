@@ -9,8 +9,12 @@ import com.ibbe.executor.XchangeRatePoller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -49,19 +53,52 @@ public class IbbeController {
   }
 
   /**
+   * Adds a new trading configuration using a POST request with JSON payload.
+   * This method accepts a complete TradeConfig object with all fields including the new trading criteria.
+   * 
+   * @param tradeConfig The trading configuration object populated from the JSON request body
+   * @return ResponseEntity containing the status of the trading configuration
+   */
+  @PostMapping("/configuration")
+  public ResponseEntity<String> addTradingConfigurationPost(@RequestBody TradeConfig tradeConfig) {
+      try {
+          logger.info("Received POST request to add configuration: {}", tradeConfig);
+          
+          // Validate the configuration
+          if (tradeConfig.getId() == null || tradeConfig.getId().trim().isEmpty()) {
+              return ResponseEntity
+                  .status(HttpStatus.BAD_REQUEST)
+                  .body("Configuration ID is required");
+          }
+          
+          // Create the trader with the full configuration including criteria
+          traderFactory.createTrader(tradeConfig);
+          
+          return ResponseEntity
+              .status(HttpStatus.CREATED)
+              .body("Started monitoring with configuration: " + tradeConfig);
+      } catch (Exception e) {
+          logger.error("Error creating trading configuration", e);
+          return ResponseEntity
+              .status(HttpStatus.INTERNAL_SERVER_ERROR)
+              .body("Error creating configuration: " + e.getMessage());
+      }
+  }
+
+  /**
    * Adds a new trading configuration to be monitored by the window.
    * @param id The ID of the trading configuration
    * @param ups The ups value for the trading configuration
    * @param downs The downs value for the trading configuration
    * @return String containing the status of the trading configuration
    */
-  @GetMapping("/addconfiguration/{id}/{ups}/{downs}")
-  public String addTradingConfiguration(@PathVariable("id") String id, @PathVariable("ups") String ups, @PathVariable("downs") String downs) throws Exception {
-      TradeConfig tradeConfig = new TradeConfig(id, ups, downs);
-      traderFactory.createTrader(tradeConfig);
-      // this returns right away to the REST caller
-      return "started polling the recent trades from Bitso with " + ups + " and " + downs + " " + id;
-  }
+  // @GetMapping("/addconfiguration/{id}/{ups}/{downs}")
+  // public String addTradingConfiguration(@PathVariable("id") String id, @PathVariable("ups") String ups, @PathVariable("downs") String downs) throws Exception {
+  //     TradeConfig tradeConfig = new TradeConfig(id, ups, downs);
+  //     traderFactory.createTrader(tradeConfig);
+  //     // this returns right away to the REST caller
+  //     return "started polling the recent trades from Bitso with " + ups + " and " + downs + " " + id;
+  // }
 
   /**
    * Removes an existing trading configuration.

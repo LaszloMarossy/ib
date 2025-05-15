@@ -10,15 +10,11 @@ public class TradeConfig {
     private String id;
     private String ups;
     private String downs;
-    private String bitsoApiKey;
-    private String bitsoApiSecret;
-
-    /**
-     * Default constructor.
-     */
-    public TradeConfig() {
-        id = RandomString.getRandomString();
-    }
+    // New boolean fields for trading criteria
+    private boolean useAvgBidVsAvgAsk;
+    private boolean useShortVsLongMovAvg;
+    private boolean useSumAmtUpVsDown;
+    private boolean useTradePriceCloserToAskVsBuy;
 
     /**
      * Constructor with ups and downs parameters.
@@ -35,31 +31,30 @@ public class TradeConfig {
     }
 
     /**
-     * Constructor with all parameters.
+     * Full constructor with all parameters including criteria fields.
      *
      * @param id the ID
      * @param ups the ups parameter
      * @param downs the downs parameter
+     * @param useAvgBidVsAvgAsk whether to use average bid vs average ask
+     * @param useShortVsLongMovAvg whether to use short-term vs long-term moving average
+     * @param useSumAmtUpVsDown whether to use sum amount up vs down
+     * @param useTradePriceCloserToAskVsBuy whether to use trade price closer to ask vs buy
      */
     public TradeConfig(@JsonProperty("id") String id,
                      @JsonProperty("ups") String ups,
-                     @JsonProperty("downs") String downs) {
-        this.id = id;
+                     @JsonProperty("downs") String downs,
+                     @JsonProperty("useAvgBidVsAvgAsk") boolean useAvgBidVsAvgAsk,
+                     @JsonProperty("useShortVsLongMovAvg") boolean useShortVsLongMovAvg,
+                     @JsonProperty("useSumAmtUpVsDown") boolean useSumAmtUpVsDown,
+                     @JsonProperty("useTradePriceCloserToAskVsBuy") boolean useTradePriceCloserToAskVsBuy) {
+        this.id = id == null ? RandomString.getRandomString() : id;
         this.ups = ups;
         this.downs = downs;
-    }
-
-    /**
-     * Constructor with API key and secret.
-     *
-     * @param bitsoApiKey the Bitso API key
-     * @param bitsoApiSecret the Bitso API secret
-     * @param isApiConfig flag indicating this is an API configuration
-     */
-    public TradeConfig(String bitsoApiKey, String bitsoApiSecret, boolean isApiConfig) {
-        this.id = RandomString.getRandomString();
-        this.bitsoApiKey = bitsoApiKey;
-        this.bitsoApiSecret = bitsoApiSecret;
+        this.useAvgBidVsAvgAsk = useAvgBidVsAvgAsk;
+        this.useShortVsLongMovAvg = useShortVsLongMovAvg;
+        this.useSumAmtUpVsDown = useSumAmtUpVsDown;
+        this.useTradePriceCloserToAskVsBuy = useTradePriceCloserToAskVsBuy;
     }
 
     /**
@@ -90,41 +85,76 @@ public class TradeConfig {
     }
 
     /**
-     * Gets the Bitso API key.
+     * Gets whether to use average bid vs average ask.
      *
-     * @return the Bitso API key
+     * @return whether to use average bid vs average ask
      */
-    public String getBitsoApiKey() {
-        return bitsoApiKey;
+    public boolean isUseAvgBidVsAvgAsk() {
+        return useAvgBidVsAvgAsk;
     }
 
     /**
-     * Sets the Bitso API key.
+     * Sets whether to use average bid vs average ask.
      *
-     * @param bitsoApiKey the Bitso API key
+     * @param useAvgBidVsAvgAsk whether to use average bid vs average ask
      */
-    public void setBitsoApiKey(String bitsoApiKey) {
-        this.bitsoApiKey = bitsoApiKey;
+    public void setUseAvgBidVsAvgAsk(boolean useAvgBidVsAvgAsk) {
+        this.useAvgBidVsAvgAsk = useAvgBidVsAvgAsk;
     }
 
     /**
-     * Gets the Bitso API secret.
+     * Gets whether to use short-term vs long-term moving average.
      *
-     * @return the Bitso API secret
+     * @return whether to use short-term vs long-term moving average
      */
-    public String getBitsoApiSecret() {
-        return bitsoApiSecret;
+    public boolean isUseShortVsLongMovAvg() {
+        return useShortVsLongMovAvg;
     }
 
     /**
-     * Sets the Bitso API secret.
+     * Sets whether to use short-term vs long-term moving average.
      *
-     * @param bitsoApiSecret the Bitso API secret
+     * @param useShortVsLongMovAvg whether to use short-term vs long-term moving average
      */
-    public void setBitsoApiSecret(String bitsoApiSecret) {
-        this.bitsoApiSecret = bitsoApiSecret;
+    public void setUseShortVsLongMovAvg(boolean useShortVsLongMovAvg) {
+        this.useShortVsLongMovAvg = useShortVsLongMovAvg;
     }
 
+    /**
+     * Gets whether to use sum amount up vs down.
+     *
+     * @return whether to use sum amount up vs down
+     */
+    public boolean isUseSumAmtUpVsDown() {
+        return useSumAmtUpVsDown;
+    }
+
+    /**
+     * Sets whether to use sum amount up vs down.
+     *
+     * @param useSumAmtUpVsDown whether to use sum amount up vs down
+     */
+    public void setUseSumAmtUpVsDown(boolean useSumAmtUpVsDown) {
+        this.useSumAmtUpVsDown = useSumAmtUpVsDown;
+    }
+
+    /**
+     * Gets whether to use trade price closer to ask vs buy.
+     *
+     * @return whether to use trade price closer to ask vs buy
+     */
+    public boolean isUseTradePriceCloserToAskVsBuy() {
+        return useTradePriceCloserToAskVsBuy;
+    }
+
+    /**
+     * Sets whether to use trade price closer to ask vs buy.
+     *
+     * @param useTradePriceCloserToAskVsBuy whether to use trade price closer to ask vs buy
+     */
+    public void setUseTradePriceCloserToAskVsBuy(boolean useTradePriceCloserToAskVsBuy) {
+        this.useTradePriceCloserToAskVsBuy = useTradePriceCloserToAskVsBuy;
+    }
 
     @Override
     public String toString() {
@@ -132,6 +162,10 @@ public class TradeConfig {
             "id='" + id + "'" +
             ", ups='" + ups + "'" +
             ", downs='" + downs + "'" +
+            ", useAvgBidVsAvgAsk=" + useAvgBidVsAvgAsk +
+            ", useShortVsLongMovAvg=" + useShortVsLongMovAvg +
+            ", useSumAmtUpVsDown=" + useSumAmtUpVsDown +
+            ", useTradePriceCloserToAskVsBuy=" + useTradePriceCloserToAskVsBuy +
             "}";
     }
 }

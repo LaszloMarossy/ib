@@ -1,9 +1,14 @@
 package com.ibbe.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.ibbe.entity.OrderBookPayload;
 import com.ibbe.entity.PerformanceData;
 import com.ibbe.entity.TradeConfig;
+import com.ibbe.entity.ChunkInfo;
 import com.ibbe.executor.BasicTrader;
 import com.ibbe.kafka.TradesConsumer;
 import org.slf4j.Logger;
@@ -32,7 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Component
 public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(PerformanceAnalysisEndpoint.class);
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
     
     // Map to store active sessions and their associated executor services
     private static final Set<WebSocketSession> activeSessions = Collections.synchronizedSet(new HashSet<>());
@@ -41,6 +46,15 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
     
     // Map to store consumer instances
     private final Map<String, TradesConsumer> sessionConsumers = new HashMap<>();
+    
+    public PerformanceAnalysisEndpoint() {
+        this.objectMapper = new ObjectMapper();
+        
+        // Register serializer for ChunkInfo class
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(ChunkInfo.class, new ChunkInfoSerializer());
+        this.objectMapper.registerModule(module);
+    }
     
     /**
      * Handles incoming WS messages from PerformanceAnalysisClient on the FX side.
@@ -201,5 +215,27 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         LOGGER.error("WebSocket transport error: {}", exception.getMessage());
         afterConnectionClosed(session, CloseStatus.SERVER_ERROR);
+    }
+    
+    /**
+     * Serializer for ChunkInfo that writes epoch millis instead of Instant objects
+     */
+    private static class ChunkInfoSerializer extends StdSerializer<ChunkInfo> {
+        public ChunkInfoSerializer() {
+            super(ChunkInfo.class);
+        }
+        
+        @Override
+        public void serialize(ChunkInfo chunk, JsonGenerator gen, SerializerProvider provider) throws IOException {
+            gen.writeStartObject();
+            gen.writeNumberField("chunkNumber", chunk.getChunkNumber());
+            gen.writeNumberField("profit", chunk.getProfit());
+            gen.writeNumberField("startingTradePrice", chunk.getStartingTradePrice());
+            gen.writeNumberField("endingTradePrice", chunk.getEndingTradePrice());
+            gen.writeNumberField("tradeCount", chunk.getTradeCount());
+            gen.writeNumberField("startTimeMillis", chunk.getStartTimeMillis());
+            gen.writeNumberField("endTimeMillis", chunk.getEndTimeMillis());
+            gen.writeEndObject();
+        }
     }
 } 

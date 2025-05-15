@@ -28,6 +28,10 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import javafx.application.Platform;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 
 import java.util.Arrays;
 
@@ -36,15 +40,13 @@ import java.util.Arrays;
  * - starts a configurable trader back-end process based on the given window inputs
  * - connects to the local back-end to monitor a configurable trader that it defines
  */
-public class TradingWindow extends Application {
+public class TradingWindow extends TradeConfigWindow {
 
     private TableView<FxTradesDisplayData> performanceTable = new TableView<>();
     private TableView<Order> topAsksTable = new TableView<>();
     private TableView<Order> topBidsTable = new TableView<>();
     private TableView<Trade> recentTradesWsTable = new TableView<>();
 
-    private TextField ups = new TextField();
-    private TextField downs = new TextField();
     private TradeConfig tradeConfig = null;
     private int previousDisplayDataHashCode = 0;
     private Label appStatusLabel;
@@ -67,11 +69,9 @@ public class TradingWindow extends Application {
         tradeDataWsClient = new TradeDataWsClient(this);
         orderbookWsClient = new OrderbookWsClient(this);
 
-        ups.setText(PropertiesUtil.getProperty("trade.up_m"));
-        downs.setText(PropertiesUtil.getProperty("trade.down_n"));
 
         HBox configBox = new HBox();
-        configBox.getChildren().addAll(ups, downs);
+        configBox.getChildren().addAll(upsField, downsField);
         configBox.setSpacing(10);
 
         appStatusLabel = new Label("App Status: Not yet monitoring... ");
@@ -207,49 +207,69 @@ public class TradingWindow extends Application {
      */
     private void createTradingConfigurationBackendProcesses(Label label) {
         try {
-            // Get server URL and deployment path from properties file
+            // Get server URL from properties file
             String serverUrl = PropertiesUtil.getProperty("server.rest.url");
-            String deployment = PropertiesUtil.getProperty("server.deployment");
-
-            // Create HTTP client for making REST calls
-            CloseableHttpClient httpClient = HttpClientBuilder.create().build();
-
-            // If there's an existing configuration, remove it first
+            
+            // If there's an existing configuration, remove it first using the base class method
             if (tradeConfig != null) {
-                // Build URL for REST endpoint to remove existing trading configuration
-                String removeUrl = deployment.concat("removeconfiguration/" + tradeConfig.getId());
+                // Create a status handler for updating the UI label
+                StatusHandler statusHandler = new StatusHandler() {
+                    @Override
+                    public void handleStatus(String message, boolean isError) {
+                        Platform.runLater(() -> label.setText(message));
+                    }
+                };
                 
-                // Create and execute GET request to backend to remove existing configuration
-                HttpGet httpRemoveRequest = new HttpGet(serverUrl + removeUrl);
-                CloseableHttpResponse httpRemoveResponse = httpClient.execute(httpRemoveRequest);
+                // Store the ID from tradeConfig in our base class tracking
+                setCurrentConfigId(tradeConfig.getId());
                 
-                // Log the removal response
-                System.out.println("Removing existing configuration: " + removeUrl + " " + httpRemoveResponse.getCode());
-                httpRemoveResponse.close();
+                // Use the base class method to end the configuration
+                endCurrentConfiguration(statusHandler);
+                
+                // Wait a brief moment for the removal to complete
+                Thread.sleep(1000);
             }
 
             // Create new trade configuration object with ups/downs parameters from UI
-            TradeConfig newTradeConfig = new TradeConfig(ups.getText(), downs.getText());
+            TradeConfig newTradeConfig = new TradeConfig(null, upsField.getText(), downsField.getText(),
+                avgBidVsAvgAskCheckBox.isSelected(), shortVsLongMovAvgCheckBox.isSelected(),
+                sumAmtUpVsDownCheckBox.isSelected(), tradePriceCloserToAskVsBuyCheckBox.isSelected());
 
-            // Build URL for REST endpoint to add new trading configuration
-            // Format: {deployment}/addconfiguration/{configId}/{ups}/{downs}
-            String url = deployment.concat("addconfiguration/" + newTradeConfig.getId()
-                    + "/" + ups.getText() + "/" + downs.getText());
+            // Build URL for REST endpoint to add new trading configuration via POST
+            String configEndpoint = serverUrl + "/configuration";
+            
+            // Update UI to show we're creating a new configuration
+            Platform.runLater(() -> label.setText("Creating new configuration: " + newTradeConfig.getId() + "..."));
+            
+            // Convert the configuration to JSON
+            String configJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(newTradeConfig);
+            
+            // Create an HTTP client
+            HttpClient httpClient = HttpClient.newHttpClient();
+            
+            // Create the POST request with JSON body
+            HttpRequest createRequest = HttpRequest.newBuilder()
+                .uri(URI.create(configEndpoint))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(configJson))
+                .build();
+            
+            // Send the request
+            HttpResponse<String> createResponse = httpClient.send(createRequest, HttpResponse.BodyHandlers.ofString());
+            
+            // Check if creation was successful
+            if (createResponse.statusCode() != 201) {
+                throw new Exception("Failed to create configuration: " + createResponse.body());
+            }
+            
+            // Log the creation response
+            System.out.println("Created configuration: " + configEndpoint + " " + createResponse.statusCode());
 
-            // Create and execute GET request to backend - calling IbbeController.addTradingConfiguration()
-            HttpGet httpGetRequest = new HttpGet(serverUrl + url);
-            CloseableHttpResponse httpResponse = httpClient.execute(httpGetRequest);
+            // Wait 3 seconds before starting to monitor the object
+            Thread.sleep(3000);
 
-            // Wait 4 seconds before starting to monitor the object
-            Thread.sleep(4000);
-
-            // Clean up HTTP resources
-            httpResponse.close();
-            System.out.println("++++++++++++++++ " + url + " " + httpResponse.getCode());
-            httpClient.close();
-
-            // Update UI to show configuration is being monitored - use Platform.runLater to ensure UI update
-            final String statusText = "Config " + newTradeConfig.getId() + " ups=" + ups.getText() + ", downs=" + downs.getText();
+            // Update UI to show configuration is being monitored
+            final String statusText = "Config: " + newTradeConfig.getId() + " ups=" + upsField.getText() + ", downs=" + downsField.getText();
             Platform.runLater(() -> {
                 label.setText(statusText);
                 // Force a UI refresh
@@ -257,8 +277,9 @@ public class TradingWindow extends Application {
                 label.setVisible(true);
             });
             
-            // Store the new trade config
+            // Store the new trade config and update the base class tracking
             tradeConfig = newTradeConfig;
+            setCurrentConfigId(newTradeConfig.getId());
             
             // Automatically start monitoring after creating the configuration
             tradeDataWsClient.subscribeToTradeConfigMonitoring(tradeConfig);

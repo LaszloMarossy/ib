@@ -31,6 +31,14 @@ public interface PerformanceWindowInterface {
     void updateStatus(String status);
     
     /**
+     * Update status message in the UI with an error flag
+     * 
+     * @param status The status message to display
+     * @param isError Whether the status message represents an error
+     */
+    void updateStatus(String status, boolean isError);
+    
+    /**
      * Process a list of window data and update the display
      */
     void updateTradeHistory(List<PerformanceData> windowData);

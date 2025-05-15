@@ -446,7 +446,12 @@ public class QuickReplayWindow extends Application implements PerformanceWindowI
     public void updateStatus(String status) {
         Platform.runLater(() -> statusLabel.setText(status));
     }
-    
+
+    @Override
+    public void updateStatus(String status, boolean isError) {
+        Platform.runLater(() -> statusLabel.setText(status));
+    }
+
     /**
      * Gets the mode of operation (2 for quick replay).
      * Implementation of PerformanceWindowInterface method.

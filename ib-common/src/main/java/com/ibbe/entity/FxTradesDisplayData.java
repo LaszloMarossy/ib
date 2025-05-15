@@ -6,8 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * represents trading info needed by the FX UI
@@ -23,9 +23,24 @@ public class FxTradesDisplayData {
   private BigDecimal startingAccountValue;
   private BigDecimal profit;
   private BigDecimal accountValue;
+  // Total profit across all trading chunks
+  private BigDecimal totalProfit = BigDecimal.ZERO;
 
   // recent trades from websocket
   private ArrayList<Trade> recentTrades;
+  
+  // Profit/loss for each trading chunk
+  private List<BigDecimal> chunkProfits = new ArrayList<>();
+
+  // Default constructor for deserialization
+  public FxTradesDisplayData() {
+    this.currencyBalance = BigDecimal.ZERO;
+    this.coinBalance = BigDecimal.ZERO;
+    this.latestPrice = BigDecimal.ZERO;
+    this.recentTrades = new ArrayList<>();
+    this.startingAccountValue = BigDecimal.ZERO;
+    this.totalProfit = BigDecimal.ZERO;
+  }
 
   // constructor for ObjectMapper
   public FxTradesDisplayData(
@@ -38,16 +53,17 @@ public class FxTradesDisplayData {
     this.latestPrice = latestPrice != null ? latestPrice : BigDecimal.ZERO;
     this.recentTrades = recentTrades != null ? recentTrades : new ArrayList<>();
     // derives from coin an currency balance..
-//    this.startingAccountValue = calculateAccountValue();
+    this.startingAccountValue = BigDecimal.ZERO;
 //    this.accountValue = startingAccountValue;
 //    this.profit = new BigDecimal(0);
+    this.totalProfit = BigDecimal.ZERO;
   }
 
   public ArrayList<Trade> getRecentTrades() {
     return recentTrades;
   }
 
-  public void addRecentTradeWs(Trade recentTrade) {
+  public void addRecentTrade(Trade recentTrade) {
     if (recentTrade == null) {
       return;
     }
@@ -95,12 +111,33 @@ public class FxTradesDisplayData {
     return startingAccountValue;
   }
 
+
+  public void setStartingAccountValue(BigDecimal startingAccountValue) {
+    this.startingAccountValue = startingAccountValue;
+  }
+
   public BigDecimal getProfit() {
     return profit;
   }
 
   public void setProfit(BigDecimal profit) {
     this.profit = profit;
+  }
+  
+  public BigDecimal getTotalProfit() {
+    return totalProfit;
+  }
+  
+  public void setTotalProfit(BigDecimal totalProfit) {
+    this.totalProfit = totalProfit;
+  }
+  
+  public List<BigDecimal> getChunkProfits() {
+    return chunkProfits;
+  }
+  
+  public void setChunkProfits(List<BigDecimal> chunkProfits) {
+    this.chunkProfits = chunkProfits;
   }
 
   public BigDecimal getAccountValue() {

@@ -17,9 +17,9 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 @EnableWebSocket
 @EnableAsync
 @Component
-public class WebSocketConfig implements WebSocketConfigurer {
+public class WebSocketEndpointConfig implements WebSocketConfigurer {
 
-  Logger LOGGER = LoggerFactory.getLogger(WebSocketConfig.class);
+  Logger LOGGER = LoggerFactory.getLogger(WebSocketEndpointConfig.class);
 
   // Removed BitsoOrderbookMonitorEndpoint as it's been deprecated in favor of OrderbookPublisherService
   
@@ -45,4 +45,4 @@ public class WebSocketConfig implements WebSocketConfigurer {
       container.setMaxSessionIdleTimeout(15 * 60 * 1000L); // 15 minutes
       return container;
   }
-}
+} 
