@@ -54,8 +54,8 @@ public class PerformanceData {
     // List of profits from previous trading chunks
     private List<BigDecimal> chunkProfits = new ArrayList<>();
     
-    // List of detailed chunk information
-    private List<ChunkInfo> chunks = new ArrayList<>();
+    // A newly completed chunk to be sent to clients
+    private ChunkInfo newCompletedChunk;
     
     // Current chunk information
     private ChunkInfo currentChunk;
@@ -114,12 +114,12 @@ public class PerformanceData {
         this.chunkProfits = chunkProfits;
     }
     
-    public List<ChunkInfo> getChunks() {
-        return chunks;
+    public ChunkInfo getNewCompletedChunk() {
+        return newCompletedChunk;
     }
     
-    public void setChunks(List<ChunkInfo> chunks) {
-        this.chunks = chunks;
+    public void setNewCompletedChunk(ChunkInfo newCompletedChunk) {
+        this.newCompletedChunk = newCompletedChunk;
     }
     
     public ChunkInfo getCurrentChunk() {
