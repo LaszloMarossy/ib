@@ -4,12 +4,10 @@ import com.ibbe.util.PropertiesUtil;
 
 import java.math.BigDecimal;
 import java.util.Deque;
-import java.util.List;
-import java.util.ArrayList;
 
 /**
- * Entity class for performance analysis data.
- * Used for Webservice communication between PerformanceAnalysisEndpoint server and PerformanceWindow client.
+ * Entity class representing a Kafka trade event; to serve as a performance analysis.
+ * Used for Webservice communication between PerformanceAnalysisEndpoint server and the FX window client WS clients.
  * Also, amounts of type double for
  * - STMAPrice (short term moving average of price),
  * - LTMAPrice (long term moving average of price),
@@ -22,7 +20,7 @@ import java.util.ArrayList;
  * indicating whether the trade price is closer to the bid price (favoring buy)
  * than to the ask price (favoring sell) (to be used with the best bid and ask price)
  */
-public class PerformanceData {
+public class TradeSnapshot {
     private int sequence;
     public double tradePrice;
     public double tradeAmount;
@@ -30,7 +28,7 @@ public class PerformanceData {
     public double avgAskAmount;
     public double avgBidPrice;
     public double avgBidAmount;
-    private long timestamp;
+    private String timestamp;
     private Long tradeId;
     private boolean amountMissing;
 
@@ -49,22 +47,24 @@ public class PerformanceData {
     private Trade pretendTrade;
 
     // to keep balances and profit
-    private FxTradesDisplayData fxTradesDisplayData;
+//    private FxTradesDisplayData fxTradesDisplayData;
+    // fields brought over from FxTradesDisplayData
+    private BigDecimal currencyBalance;
+    private BigDecimal coinBalance;
+    private BigDecimal latestPrice;
+    // carried for each trade, this indicates the account value in the current chunk
+    // this means that this is always based on the chunk balances in effect
+    private BigDecimal accountValueInChunk;
     
     // A newly completed chunk to be sent to clients
-    private ChunkInfo newCompletedChunk;
-    
+    private ChunkInfo completedChunk;
     // Current chunk information
     private ChunkInfo currentChunk;
-    
-    // Total number of chunks that exist (may be more than in the chunks list)
-    private int totalChunkCount;
-
     // keeping configured constants for long/short term moving average calc
     public int ltma, stma;
 
     // Default constructor
-    public PerformanceData() {
+    public TradeSnapshot() {
         // short/long term moving average
         this.STMAPrice = 0.0;
         this.LTMAPrice = 0.0;
@@ -81,51 +81,8 @@ public class PerformanceData {
         // Default to 5 for stma and 20 for ltma if properties are not set
         this.stma = stmaStr != null ? Integer.parseInt(stmaStr) : 5;
         this.ltma = ltmaStr != null ? Integer.parseInt(ltmaStr) : 20;
+
     }
-
-    // Constructor with all fields
-    public PerformanceData(
-            int sequence,
-            double tradePrice,
-            double tradeAmount,
-            double avgAskPrice,
-            double avgAskAmount,
-            double avgBidPrice,
-            double avgBidAmount,
-            long timestamp,
-            boolean amountMissing,
-            Long tradeId) {
-        this.sequence = sequence;
-        this.tradePrice = tradePrice;
-        this.tradeAmount = tradeAmount;
-
-        this.avgAskPrice = avgAskPrice;
-        this.avgAskAmount = avgAskAmount;
-        this.avgBidPrice = avgBidPrice;
-        this.avgBidAmount = avgBidAmount;
-
-        this.timestamp = timestamp;
-        this.tradeId = tradeId;
-        this.amountMissing = amountMissing;
-
-        // short/long term moving average
-        this.STMAPrice = 0.0;
-        this.LTMAPrice = 0.0;
-        // sum of amounts up/down
-        this.SAUp = 0.0;
-        this.SADown = 0.0;
-        // position relative to averages
-        this.priceCloserToBestAsk = 0.0;
-
-        // get from config what is long vs short term
-        String stmaStr = PropertiesUtil.getProperty("stma");
-        String ltmaStr = PropertiesUtil.getProperty("ltma");
-        
-        // Default to 5 for stma and 20 for ltma if properties are not set
-        this.stma = stmaStr != null ? Integer.parseInt(stmaStr) : 5;
-        this.ltma = ltmaStr != null ? Integer.parseInt(ltmaStr) : 20;
-    }
-
 
 
     /**
@@ -333,16 +290,12 @@ public class PerformanceData {
         this.avgBidAmount = avgBidAmount != null ? avgBidAmount.doubleValue() : 0;
     }
 
-    public long getTimestamp() {
+    public String getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(long timestamp) {
+    public void setTimestamp(String timestamp) {
         this.timestamp = timestamp;
-    }
-
-    public void setTimestamp(Long timestamp) {
-        this.timestamp = timestamp != null ? timestamp : 0L;
     }
 
     public Long getTradeId() {
@@ -435,14 +388,6 @@ public class PerformanceData {
     }
 
 
-    public FxTradesDisplayData getFxTradesDisplayData() {
-        return fxTradesDisplayData;
-    }
-
-    public void setFxTradesDisplayData(FxTradesDisplayData fxTradesDisplayData) {
-        this.fxTradesDisplayData = fxTradesDisplayData;
-    }
-
     // Getter and setter for amountMissing
     public boolean isAmountMissing() {
         return amountMissing;
@@ -486,44 +431,50 @@ public class PerformanceData {
      *
      * @return Newly completed chunk information
      */
-    public ChunkInfo getNewCompletedChunk() {
-        return newCompletedChunk;
+    public ChunkInfo getCompletedChunk() {
+        return completedChunk;
     }
 
     /**
      * Sets the newly completed chunk to be sent to clients
      *
-     * @param newCompletedChunk Newly completed chunk information
+     * @param completedChunk Newly completed chunk information
      */
-    public void setNewCompletedChunk(ChunkInfo newCompletedChunk) {
-        this.newCompletedChunk = newCompletedChunk;
+    public void setCompletedChunk(ChunkInfo completedChunk) {
+        this.completedChunk = completedChunk;
     }
 
-    /**
-     * Gets information about the current trading chunk
-     *
-     * @return Current chunk information
-     */
-    public ChunkInfo getCurrentChunk() {
-        return currentChunk;
+    public BigDecimal getCurrencyBalance() {
+      return currencyBalance;
     }
 
-    /**
-     * Sets information about the current trading chunk
-     *
-     * @param currentChunk Current chunk information
-     */
-    public void setCurrentChunk(ChunkInfo currentChunk) {
-        this.currentChunk = currentChunk;
+    public void setCurrencyBalance(BigDecimal currencyBalance) {
+      this.currencyBalance = currencyBalance;
+  //    this.profit = calculateProfit();
     }
 
-    // Getter and setter for totalChunkCount
-    public int getTotalChunkCount() {
-        return totalChunkCount;
+    public BigDecimal getCoinBalance() {
+      return coinBalance;
     }
 
-    public void setTotalChunkCount(int totalChunkCount) {
-        this.totalChunkCount = totalChunkCount;
+    public void setCoinBalance(BigDecimal coinBalance) {
+      this.coinBalance = coinBalance;
+  //    this.profit = calculateProfit();
     }
 
+    public BigDecimal getLatestPrice() {
+      return latestPrice;
+    }
+
+    public void setLatestPrice(BigDecimal latestPrice) {
+      this.latestPrice = latestPrice;
+    }
+
+    public BigDecimal getAccountValueInChunk() {
+      return accountValueInChunk;
+    }
+
+    public void setAccountValueInChunk(BigDecimal accountValueInChunk) {
+      this.accountValueInChunk = accountValueInChunk;
+    }
 } 

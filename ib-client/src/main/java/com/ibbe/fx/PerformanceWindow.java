@@ -1,10 +1,7 @@
 package com.ibbe.fx;
 
-import com.ibbe.entity.PerformanceData;
-import com.ibbe.entity.FxTradesDisplayData;
-import com.ibbe.util.PropertiesUtil;
+import com.ibbe.entity.TradeSnapshot;
 import com.ibbe.websocket.PerformanceAnalysisClient;
-import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -19,9 +16,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
-import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
-import javafx.scene.control.CheckBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -101,7 +96,7 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
     private PerformanceAnalysisClient performanceClient;
     
     // Queue to store data points for updating the chart
-    private final LinkedList<PerformanceData> dataPoints = new LinkedList<>();
+    private final LinkedList<TradeSnapshot> dataPoints = new LinkedList<>();
     private final AtomicInteger sequenceNumber = new AtomicInteger(0);
     
     // Flag to indicate if chart is initialized
@@ -185,7 +180,7 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
                 
                 // Find the corresponding data point if available
                 synchronized (dataPoints) {
-                    for (PerformanceData point : dataPoints) {
+                    for (TradeSnapshot point : dataPoints) {
                         if (point.getSequence() == seq) {
                             // Format as "[offset #] - [2 digit year].[month].[day].[hour].[min]"
                             return seq + " - " + xAxisFormatter.format(new Date(point.getTimestamp()));
@@ -732,7 +727,7 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
         });
         
         // Get the window of data from the client
-        List<PerformanceData> windowData = 
+        List<TradeSnapshot> windowData =
             performanceClient.getDataWindow(startIndex, visiblePoints);
         
         if (windowData.isEmpty()) {
@@ -749,13 +744,13 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
     /**
      * Update the chart with data from the current window
      */
-    private void updateChartWithWindowData(List<PerformanceData> windowData, int startIndex) {
+    private void updateChartWithWindowData(List<TradeSnapshot> windowData, int startIndex) {
         // First, ensure pretend trades are visible
         ensurePretendTradesVisible();
         
         // Store all pretend trades from the window data for later re-addition
         // CRITICAL: Filter ONLY for pretend trades by checking if pretendTrade is not null
-        List<PerformanceData> pretendTradePoints = windowData.stream()
+        List<TradeSnapshot> pretendTradePoints = windowData.stream()
             .filter(p -> p.getPretendTrade() != null)
             .toList();
         
@@ -820,7 +815,7 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
                 
                 // Process each data point in the window
                 for (int i = 0; i < windowData.size(); i++) {
-                    PerformanceData point = windowData.get(i);
+                    TradeSnapshot point = windowData.get(i);
                     int seq = point.getSequence();
                     
                     // Add data to the price series
@@ -994,7 +989,7 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
             Platform.runLater(() -> {
                             try {
                                 // Re-add all pretend trades from the window data
-                                for (PerformanceData point : pretendTradePoints) {
+                                for (TradeSnapshot point : pretendTradePoints) {
                                     if (point.getPretendTrade() != null && point.getPretendTrade().getPrice() != null) {
                                         com.ibbe.entity.Trade trade = point.getPretendTrade();
                                         int seq = point.getSequence();
@@ -1238,12 +1233,12 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
      * 
      * @param windowData The window of data to display
      */
-    private void updateTradeHistoryFromWindow(List<PerformanceData> windowData) {
+    private void updateTradeHistoryFromWindow(List<TradeSnapshot> windowData) {
 
         // STRICT FILTER: Only take points where pretendTrade is not null
-        final List<PerformanceData> pretendTradePointsOnly = windowData.stream()
+        final List<TradeSnapshot> pretendTradePointsOnly = windowData.stream()
             .filter(p -> p.getPretendTrade() != null) 
-            .sorted(Comparator.comparingLong(PerformanceData::getTimestamp))
+//            .sorted(Comparator.comparing(TradeSnapshot::getTimestamp))
             .collect(Collectors.toList());
         
 
@@ -1330,7 +1325,7 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
 
                 
                 // Process ONLY pretend trades
-                for (PerformanceData dp : pretendTradePointsOnly) {
+                for (TradeSnapshot dp : pretendTradePointsOnly) {
                     // Skip if somehow not a valid pretend trade (defensive)
                     if (dp.getPretendTrade() == null) {
 //                        System.out.println("WARNING: Skipping null pretend trade at seq " + dp.getSequence());
@@ -1343,9 +1338,11 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
                     BigDecimal tradePrice = dp.getPretendTrade().getPrice();
                     BigDecimal tradeAmount = dp.getPretendTrade().getAmount();
                     BigDecimal tradeValue = tradePrice.multiply(tradeAmount);
-                    runningCurrency = dp.getFxTradesDisplayData().getCurrencyBalance();
-                    runningCoin = dp.getFxTradesDisplayData().getCoinBalance();
-                    runningProfit = dp.getFxTradesDisplayData().getProfit();
+                    runningCurrency = dp.getCurrencyBalance();
+                    runningCoin = dp.getCoinBalance();
+                    // @todo implement
+//                    runningProfit = dp.getFxTradesDisplayData().getProfit();
+
                     // Update running balances
 //                    if (isBuy) { // Buy
 //                        runningCurrency = runningCurrency.subtract(tradeValue);
@@ -1404,7 +1401,7 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
                 
                 // Update balance display if we have any pretend trades
                 if (!pretendTradePointsOnly.isEmpty()) {
-                    PerformanceData lastPoint = pretendTradePointsOnly.get(pretendTradePointsOnly.size() - 1);
+                    TradeSnapshot lastPoint = pretendTradePointsOnly.get(pretendTradePointsOnly.size() - 1);
                     BigDecimal lastPrice = lastPoint.getPretendTrade().getPrice();
                     
 //                    BigDecimal finalValue = runningCurrency.add(runningCoin.multiply(lastPrice));
@@ -1584,7 +1581,7 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
         } else if (mode == 2) {
             // In Quick Replay mode, only update trade history from all available data
             // This ensures all trades are displayed even without chart updates
-            List<PerformanceData> allData = performanceClient.getDataWindow(0, performanceClient.getDatasetSize());
+            List<TradeSnapshot> allData = performanceClient.getDataWindow(0, performanceClient.getDatasetSize());
             if (!allData.isEmpty()) {
                 updateTradeHistoryFromWindow(allData);
             }
@@ -1748,7 +1745,7 @@ public class PerformanceWindow extends TradeConfigWindow implements PerformanceW
      * Implementation of PerformanceWindowInterface method.
      */
     @Override
-    public void updateTradeHistory(List<PerformanceData> windowData) {
+    public void updateTradeHistory(List<TradeSnapshot> windowData) {
         updateTradeHistoryFromWindow(windowData);
     }
     

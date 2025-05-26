@@ -1,7 +1,8 @@
 package com.ibbe.fx;
 
 import com.ibbe.entity.ChunkInfo;
-import com.ibbe.entity.PerformanceData;
+import com.ibbe.entity.TradeSnapshot;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -9,7 +10,7 @@ import java.util.List;
  * Interface defining methods required by the PerformanceAnalysisClient
  * for any window that wants to display performance analysis data.
  */
-public interface PerformanceWindowInterface {
+public interface QuickReplayWindowInterface {
     
     /**
      * Called when a new chunk is received from the server.
@@ -21,7 +22,7 @@ public interface PerformanceWindowInterface {
      * Called when a new pretend trade is received from the server.
      * @param trade The new pretend trade data
      */
-    void onNewPretendTrade(PerformanceData trade);
+    void onNewPretendTrade(TradeSnapshot trade);
     
     /**
      * Gets the mode of operation (1 for visual replay, 2 for quick replay)
@@ -54,7 +55,7 @@ public interface PerformanceWindowInterface {
     /**
      * Process a list of window data and update the display
      */
-    void updateTradeHistory(List<PerformanceData> windowData);
+    void updateTradeHistory(List<TradeSnapshot> windowData);
     
     /**
      * Update the balance display with current values

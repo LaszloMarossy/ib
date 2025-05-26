@@ -4,7 +4,7 @@ import com.ibbe.cfg.ApplicationContextProvider;
 import com.ibbe.entity.BitsoDataAggregator;
 import com.ibbe.entity.FxTradesDisplayData;
 import com.ibbe.entity.OrderBookPayload;
-import com.ibbe.entity.PerformanceData;
+import com.ibbe.entity.TradeSnapshot;
 import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeConfig;
 import org.slf4j.Logger;
@@ -53,9 +53,8 @@ public class LiveTrader extends BasicTrader implements PropertyChangeListener {
 //      this.poller = context.getBean(XchangeRatePoller.class);
       this.bitsoDataAggregator = context.getBean(BitsoDataAggregator.class);
 
-      fxTradesDisplayData = new FxTradesDisplayData(
-          currencyBalance, coinBalance,
-          new BigDecimal(0).setScale(2, RoundingMode.DOWN), new ArrayList<>());
+      fxTradesDisplayData = new FxTradesDisplayData( currencyBalance, coinBalance,
+          BigDecimal.ZERO.setScale(2, RoundingMode.DOWN), new ArrayList<>());
       // register for new trades identified by the back-end
       bitsoDataAggregator.addObserver(this);
     } catch (Exception e) {
@@ -75,16 +74,16 @@ public class LiveTrader extends BasicTrader implements PropertyChangeListener {
     try {
       Trade trade = ((Trade) evt.getNewValue());
       OrderBookPayload orderBook = bitsoDataAggregator.getOrderbookPayload();
-      PerformanceData performanceData = makeTradeDecision(trade, orderBook);
-      logger.info("$$$$$$>>>>> " + id + " >> " + (performanceData.getPretendTrade() == null));
+      TradeSnapshot tradeSnapshot = makeTradeDecision(trade, orderBook);
+      logger.info("$$$$$$>>>>> " + id + " >> " + (tradeSnapshot.getPretendTrade() == null));
 
       // if there is no starting account value yet, calculate and set
       if (BigDecimal.ZERO.equals(fxTradesDisplayData.getStartingAccountValue())) {
-        fxTradesDisplayData.setStartingAccountValue(calculateAccountValue());
+        fxTradesDisplayData.setStartingAccountValue(calculateAccountValue(tradeSnapshot));
       }
 
-      if (performanceData.getPretendTrade() != null) {
-        tradeFollowUp(performanceData.getPretendTrade());
+      if (tradeSnapshot.getPretendTrade() != null) {
+        tradeFollowUp(tradeSnapshot.getPretendTrade());
       }
       updateDisplay(fxTradesDisplayData);
 
@@ -100,6 +99,14 @@ public class LiveTrader extends BasicTrader implements PropertyChangeListener {
       e.printStackTrace();
       throw new RuntimeException(e);
     }
+  }
+
+  private void updateDisplay(FxTradesDisplayData fxTradesDisplayData) {
+    fxTradesDisplayData.setCurrencyBalance(currencyBalance);
+    fxTradesDisplayData.setCoinBalance(coinBalance);
+    // pretend trades in chunks would carry this snapshot acct value
+    // @todo implement properly w calculateAccountValue(tradeSnapshot)
+    fxTradesDisplayData.setAccountValueInChunk(BigDecimal.ZERO.setScale(2, RoundingMode.DOWN));
   }
 
   /**

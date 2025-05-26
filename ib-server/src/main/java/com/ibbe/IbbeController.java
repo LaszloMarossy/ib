@@ -4,7 +4,6 @@ import com.ibbe.entity.BitsoDataAggregator;
 import com.ibbe.entity.FxTradesDisplayData;
 import com.ibbe.entity.TradeConfig;
 import com.ibbe.executor.TraderFactory;
-import com.ibbe.executor.LiveTrader;
 import com.ibbe.executor.XchangeRatePoller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,7 +123,7 @@ public class IbbeController {
   public String getExecutorInfo(@PathVariable("id") String id) throws Exception {
       // this returns right away to the REST caller
       FxTradesDisplayData dd = traderFactory.getTraderDisplayData(id);
-      return "trader " + id + " account value: $" + dd.getAccountValue()
+      return "trader " + id + " account value: $" + dd.getAccountValueInChunk()
           + " with profit $" + dd.getProfit();
   }
 }

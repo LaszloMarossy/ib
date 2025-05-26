@@ -7,8 +7,7 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.ibbe.entity.FxTradesDisplayData;
-import com.ibbe.entity.PerformanceData;
-import com.ibbe.entity.Trade;
+import com.ibbe.entity.TradeSnapshot;
 import com.ibbe.entity.TradeConfig;
 import com.ibbe.entity.ChunkInfo;
 import com.ibbe.fx.PerformanceWindowInterface;
@@ -35,9 +34,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import javafx.application.Platform;
 
 /**
@@ -53,15 +55,29 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     private ScheduledExecutorService chartUpdater;
     
     // Queue to store data points for throttled processing
-    private final Queue<PerformanceData> dataQueue = new ConcurrentLinkedQueue<>();
+    private final Queue<TradeSnapshot> dataQueue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean processingActive = new AtomicBoolean(false);
     
+    // Incoming message queue for throttling processing
+    private final Queue<TradeSnapshot> incomingMessageQueue = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger queuedMessageCount = new AtomicInteger(0);
+    private static final int MAX_QUEUED_MESSAGES = 10000; // Safety limit to prevent memory issues
+    
     // Complete dataset storage - thread-safe list with capacity for 50,000 records
-    private final List<PerformanceData> completeDataset = Collections.synchronizedList(new ArrayList<>(50000));
+    private final List<TradeSnapshot> completeDataset = Collections.synchronizedList(new ArrayList<>(50000));
     private final AtomicInteger totalRecordsReceived = new AtomicInteger(0);
     
     // Track the last used configuration ID
     private String currentConfigId = null;
+    
+    // List to store accumulated chunks
+    private final List<ChunkInfo> accumulatedChunks = Collections.synchronizedList(new ArrayList<>());
+    
+    // Set to track processed chunk IDs to prevent duplicates
+    private final Set<Integer> processedChunkIds = Collections.synchronizedSet(new HashSet<>());
+    
+    // Running total of all chunk profits
+    private final AtomicReference<BigDecimal> totalChunkProfit = new AtomicReference<>(BigDecimal.ZERO);
     
     // Maximum number of records to store in memory
     private static final int MAX_RECORDS = 50000;
@@ -147,6 +163,31 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     }
     
     /**
+     * Starts the performance analysis by connecting to the server with a criteria string.
+     * This method is used by the QuickReplayWindow.
+     * 
+     * @param ups The ups value for the configuration
+     * @param downs The downs value for the configuration
+     * @param criteriaStr Comma-separated string of criteria names to use
+     * @param configId The configuration ID to use
+     */
+    public void startPerformanceAnalysis(String ups, String downs, String criteriaStr, String configId) {
+        // Parse the criteria string into boolean values
+        boolean useAvgBidVsAvgAsk = criteriaStr.contains("avgBidVsAvgAsk");
+        boolean useShortVsLongMovAvg = criteriaStr.contains("shortVsLongMovAvg");
+        boolean useSumAmtUpVsDown = criteriaStr.contains("sumAmtUpVsDown");
+        boolean useTradePriceCloserToAskVsBuy = criteriaStr.contains("tradePriceCloserToAskVsBuy");
+        
+        // Call the main method with the parsed criteria and the provided configId
+        startPerformanceAnalysis(ups, downs, 
+                              useAvgBidVsAvgAsk,
+                              useShortVsLongMovAvg,
+                              useSumAmtUpVsDown,
+                              useTradePriceCloserToAskVsBuy,
+                              configId);
+    }
+    
+    /**
      * Starts the performance analysis by connecting to the server with expanded criteria options.
      * 
      * @param ups The ups value for the configuration
@@ -161,6 +202,32 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                                        boolean useShortVsLongMovAvg,
                                        boolean useSumAmtUpVsDown,
                                        boolean useTradePriceCloserToAskVsBuy) {
+        // Generate a random configId and call the method that takes a configId
+        startPerformanceAnalysis(ups, downs,
+                              useAvgBidVsAvgAsk,
+                              useShortVsLongMovAvg,
+                              useSumAmtUpVsDown,
+                              useTradePriceCloserToAskVsBuy,
+                              RandomString.getRandomString());
+    }
+    
+    /**
+     * Starts the performance analysis by connecting to the server with expanded criteria options and a specific configId.
+     * 
+     * @param ups The ups value for the configuration
+     * @param downs The downs value for the configuration
+     * @param useAvgBidVsAvgAsk Whether to use average bid vs average ask in trading decisions
+     * @param useShortVsLongMovAvg Whether to use short vs long moving average in trading decisions
+     * @param useSumAmtUpVsDown Whether to use sum amount up vs down in trading decisions
+     * @param useTradePriceCloserToAskVsBuy Whether to use trade price closer to ask vs buy in trading decisions
+     * @param configId The configuration ID to use
+     */
+    public void startPerformanceAnalysis(String ups, String downs, 
+                                       boolean useAvgBidVsAvgAsk,
+                                       boolean useShortVsLongMovAvg,
+                                       boolean useSumAmtUpVsDown,
+                                       boolean useTradePriceCloserToAskVsBuy,
+                                       String configId) {
         executor.submit(() -> {
             try {
                 // Close existing session if any
@@ -172,6 +239,9 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                 dataQueue.clear();
                 completeDataset.clear();
                 totalRecordsReceived.set(0);
+                accumulatedChunks.clear(); // Clear accumulated chunks for new analysis
+                processedChunkIds.clear(); // Clear processed chunk IDs
+                totalChunkProfit.set(BigDecimal.ZERO); // Reset total chunk profit
                 
                 // Stop any existing processing
                 processingActive.set(false);
@@ -183,8 +253,10 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                 String wsUrl = PropertiesUtil.getProperty("server.ws.url");
                 String performanceAnalysisEndpoint = wsUrl.replace("/websocket", "/performanceanalysis");
                 
+                // Save the current configuration ID
+                this.currentConfigId = configId;
+                
                 // First, create the TradeConfig using the REST POST endpoint
-                String configId = RandomString.getRandomString();
                 TradeConfig tradeConfig = new TradeConfig(configId, ups, downs, useAvgBidVsAvgAsk,
                     useShortVsLongMovAvg, useSumAmtUpVsDown, useTradePriceCloserToAskVsBuy);
                 
@@ -197,31 +269,33 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                 
                 // Update status to show we're creating the configuration
                 window.updateStatus("Creating trading configuration...");
+
+                // no need to call the REST end, as there is only a single trader that is created by the endpoint
                 
-                // Send the POST request
-                try {
-                    // Create an HTTP client
-                    HttpClient httpClient = HttpClient.newHttpClient();
-                    
-                    // Create the request
-                    HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(configEndpoint))
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(configJson))
-                        .build();
-                    
-                    // Send the request
-                    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                    
-                    // Check the response
-                    if (response.statusCode() != 201) {
-                        throw new Exception("Error creating configuration: " + response.body());
-                    }
-                    
-                    window.updateStatus("Configuration created successfully, connecting to WebSocket...");
-                } catch (Exception e) {
-                    throw new Exception("Error sending configuration: " + e.getMessage(), e);
-                }
+//                // Send the POST request
+//                try {
+//                    // Create an HTTP client
+//                    HttpClient httpClient = HttpClient.newHttpClient();
+//
+//                    // Create the request
+//                    HttpRequest request = HttpRequest.newBuilder()
+//                        .uri(URI.create(configEndpoint))
+//                        .header("Content-Type", "application/json")
+//                        .POST(HttpRequest.BodyPublishers.ofString(configJson))
+//                        .build();
+//
+//                    // Send the request
+//                    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+//
+//                    // Check the response
+//                    if (response.statusCode() != 201) {
+//                        throw new Exception("Error creating configuration: " + response.body());
+//                    }
+//
+//                    window.updateStatus("Configuration created successfully, connecting to WebSocket...");
+//                } catch (Exception e) {
+//                    throw new Exception("Error sending configuration: " + e.getMessage(), e);
+//                }
                 
                 // Now connect to the WebSocket to monitor the configuration
                 session = client.execute(this, performanceAnalysisEndpoint).get();
@@ -247,8 +321,51 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     }
     
     /**
+     * Handles incoming WebSocket messages.
+     * Queues messages for throttled processing instead of processing immediately.
+     */
+    @Override
+    public void handleTextMessage(WebSocketSession session, TextMessage message) {
+        try {
+            String payload = message.getPayload();
+            
+            // Try to deserialize the message directly into a PerformanceData object
+            try {
+                TradeSnapshot data = objectMapper.readValue(payload, TradeSnapshot.class);
+                processDataPoint(data);
+//                if (data != null) {
+//                    // Add to queue for throttled processing instead of processing immediately
+//                    // Only keep up to MAX_QUEUED_MESSAGES to prevent memory issues
+//                    if (queuedMessageCount.get() < MAX_QUEUED_MESSAGES) {
+//                        incomingMessageQueue.add(data);
+//                        queuedMessageCount.incrementAndGet();
+//
+//                        // Ensure processing is active to handle the queue
+//                        if (!processingActive.get()) {
+//                            startProcessingData();
+//                        }
+//                    } else {
+//                        // Queue is full, log warning and drop the message
+//                        System.err.println("WARNING: Message queue full, dropping message to prevent memory issues");
+//                    }
+//
+//                    // Increment the total records counter regardless of processing
+//                    totalRecordsReceived.incrementAndGet();
+//                }
+            } catch (Exception e) {
+                System.err.println("Error parsing WebSocket message: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } catch (Exception e) {
+            System.err.println("Error processing data point: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
      * Starts processing data from the queue efficiently.
      * Uses batching to reduce UI updates and improve performance.
+     * todo take out?
      */
     private void startProcessingData() {
         if (chartUpdater != null && !chartUpdater.isShutdown()) {
@@ -261,6 +378,12 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
         // Set processing active flag
         processingActive.set(true);
         
+        // Schedule periodic memory usage check
+        ScheduledExecutorService memoryMonitor = Executors.newSingleThreadScheduledExecutor();
+        memoryMonitor.scheduleAtFixedRate(() -> {
+            checkMemoryUsage();
+        }, 10, 10, TimeUnit.SECONDS);
+        
         chartUpdater.scheduleAtFixedRate(() -> {
             try {
                 if (!processingActive.get()) {
@@ -271,23 +394,40 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                         System.out.println("Session is still active, resuming processing");
                     } else {
                         System.out.println("Session is closed, not resuming processing");
-                        return;
+                        return; // Don't attempt reconnection automatically
                     }
                 }
                 
-                // Process data in batches for better performance
-                List<PerformanceData> batch = new ArrayList<>();
-                PerformanceData data;
+                // Process a batch of messages from the incoming message queue
+                int messagesToProcess = Math.min(10, incomingMessageQueue.size());
+                List<TradeSnapshot> batch = new ArrayList<>(messagesToProcess);
                 
-                // Collect up to 100 data points in a batch
-                while ((data = dataQueue.poll()) != null && batch.size() < 100) {
+                // Process a batch of messages from the queue
+                for (int i = 0; i < messagesToProcess; i++) {
+                    TradeSnapshot data = incomingMessageQueue.poll();
+                    if (data == null) break;
+                    
+                    queuedMessageCount.decrementAndGet();
+                    processDataPoint(data);
                     batch.add(data);
                 }
                 
+                // Log queue status occasionally
+//                if (totalRecordsReceived.get() % 1000 == 0) {
+//                    System.out.println("Queue status: " + queuedMessageCount.get() + " messages waiting");
+//                }
+                
+                // Update UI with batch if not empty
                 if (!batch.isEmpty()) {
-                    System.out.println("Processing batch of " + batch.size() + " data points. Queue size: " + dataQueue.size());
                     // Update the UI with the batch of data
                     updateUIWithBatch(batch);
+                    
+                    // Add a small delay after each batch to reduce CPU usage
+                    try {
+                        Thread.sleep(20);  // 20ms delay - increased from 10ms
+                    } catch (InterruptedException e) {
+                        // Ignore interruption
+                    }
                 }
             } catch (Exception e) {
                 System.err.println("Error processing data: " + e.getMessage());
@@ -297,41 +437,68 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                     System.out.println("Encountered error but session is active, continuing processing");
                 }
             }
-        }, 0, 100, TimeUnit.MILLISECONDS);
+        }, 0, 150, TimeUnit.MILLISECONDS); // 150ms interval for smooth UI updates
         
         System.out.println("Data processing thread started successfully");
     }
     
     /**
-     * Restarts the data processing thread if it was stopped.
-     * This can be called when new data arrives but processing is inactive.
+     * Processes a single data point, handling chunks and trades.
      */
-    private void ensureProcessingActive() {
-        if (!processingActive.get() && session != null && session.isOpen()) {
-            System.out.println("Processing was inactive but session is open, restarting processing thread");
-            startProcessingData();
-        }
-    }
-    
-    /**
-     * Adds a data point to the complete dataset, respecting the maximum size limit.
-     * Memory optimization to prevent OOM errors.
-     *
-     * @param data The data point to add.
-     */
-    private void addToCompleteDataset(PerformanceData data) {
-        synchronized (completeDataset) {
-            // Add the new data point
-            completeDataset.add(data);
+    private void processDataPoint(TradeSnapshot data) {
+        // Process new completed chunk
+        if (data.getCompletedChunk() != null) {
+            ChunkInfo newChunk = data.getCompletedChunk();
             
-            // If we have too many records, remove the oldest ones
-            // Instead of constant pruning, only trim when significantly over limit
-            if (completeDataset.size() > MAX_RECORDS + 500) {
-                int removeCount = completeDataset.size() - MAX_RECORDS;
-                completeDataset.subList(0, removeCount).clear();
+            // Thread-safe check to prevent duplicate processing
+//            if (!processedChunkIds.contains(newChunk.getChunkNumber())) {
+            processedChunkIds.add(newChunk.getChunkNumber());
+                // Add new chunks to the beginning of the list (newest first)
+            accumulatedChunks.addFirst(newChunk);
+                
+                // Update the running total of chunk profits
+            BigDecimal currentTotal = totalChunkProfit.get();
+            totalChunkProfit.set(currentTotal.add(newChunk.getProfit()));
+                
+                // Only log important events like new chunks
+            System.out.println("Received new completed chunk #" + newChunk.getChunkNumber());
+
+        }
+        
+        // Process pretend trade if present
+        if (data.getPretendTrade() != null) {
+            // For QuickReplayMode (mode == 2), only keep track of pretend trades
+            if (window.getMode() == 2) {
+                synchronized (completeDataset) {
+                    // Add the new data with pretend trade to the dataset
+                    completeDataset.add(data);
+                    
+                    // If over the limit, remove the oldest entries
+                    if (completeDataset.size() > MAX_RECORDS) {
+                        completeDataset.remove(0);
+                    }
+                }
+                
+                // Explicitly tell the window to update when we have a new pretend trade
+                window.onNewDataAvailable();
+            } else {
+                // For visual mode, add to the dataset as usual
+                addToCompleteDataset(data);
             }
         }
-        totalRecordsReceived.incrementAndGet();
+        
+        // Process balance updates
+
+        if (data.getCurrencyBalance() != null &&
+            data.getCoinBalance() != null &&
+            data.getAccountValueInChunk() != null) {
+
+            window.updateBalanceDisplay(
+                data.getCurrencyBalance(),
+                data.getCoinBalance(),
+                data.getAccountValueInChunk()
+            );
+        }
     }
     
     /**
@@ -339,60 +506,78 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
      * 
      * @param batch The batch of data points to update the UI with
      */
-    private void updateUIWithBatch(List<PerformanceData> batch) {
+    private void updateUIWithBatch(List<TradeSnapshot> batch) {
         if (batch.isEmpty()) {
             return;
         }
         
         // Get the last data point for UI updates
-        PerformanceData lastData = batch.get(batch.size() - 1);
+        TradeSnapshot tradeSnapshot = batch.get(batch.size() - 1);
         
         // Extract balance information if available
-        if (lastData.getFxTradesDisplayData() != null) {
-            FxTradesDisplayData displayData = lastData.getFxTradesDisplayData();
-            
             // Update balance and profit information
-            if (displayData.getCurrencyBalance() != null && 
-                displayData.getCoinBalance() != null && 
-                displayData.getProfit() != null) {
-                
-                System.out.println("Updating balance display - Currency: " + displayData.getCurrencyBalance() + 
-                    ", Coin: " + displayData.getCoinBalance() + ", Profit: " + displayData.getProfit());
-                
-                Platform.runLater(() -> {
-                    try {
-                        window.updateBalanceDisplay(
-                            displayData.getCurrencyBalance(),
-                            displayData.getCoinBalance(),
-                            displayData.getProfit()
+        if (tradeSnapshot.getCurrencyBalance() != null &&
+            tradeSnapshot.getCoinBalance() != null &&
+            tradeSnapshot.getAccountValueInChunk() != null) {
+
+            // Get the total profit from all accumulated chunks
+            BigDecimal chunkProfit = getTotalChunkProfit();
+            BigDecimal tradeProfit = tradeSnapshot.getAccountValueInChunk();
+
+            // For now, we'll only use the trade profit from the server, not chunk profit
+            // This avoids double-counting as the server-side profit already accounts for chunks
+            BigDecimal totalProfit = tradeProfit;
+
+            // Need to create a final variable for use in the lambda
+            final BigDecimal finalTotalProfit = totalProfit;
+            Platform.runLater(() -> {
+                try {
+                    window.updateBalanceDisplay(
+                        tradeSnapshot.getCurrencyBalance(),
+                        tradeSnapshot.getCoinBalance(),
+                        finalTotalProfit
+                    );
+
+                    // Update trade statistics if window is QuickReplayWindow
+                    if (window instanceof com.ibbe.fx.QuickReplayWindow) {
+                        ((com.ibbe.fx.QuickReplayWindow) window).updateTradeStatistics(
+                            totalRecordsReceived.get(),
+                            getPretendTradeCount()
                         );
-                    } catch (Exception e) {
-                        System.err.println("Error updating balance and profit: " + e.getMessage());
-                        e.printStackTrace();
                     }
-                });
-            }
-        }
-        
-        // Ensure data is added to the complete dataset before updating UI
-        synchronized (completeDataset) {
-            for (PerformanceData data : batch) {
-                if (!completeDataset.contains(data)) {
-                    completeDataset.add(data);
+                } catch (Exception e) {
+                    System.err.println("Error updating balance and profit: " + e.getMessage());
+                    e.printStackTrace();
                 }
-            }
+            });
         }
+
         
-        // Update the chart with the new data
-        Platform.runLater(() -> {
-            try {
-                // Notify the window that new data is available
-                window.onNewDataAvailable();
-            } catch (Exception e) {
-                System.err.println("Error updating chart: " + e.getMessage());
-                e.printStackTrace();
-            }
-        });
+        // Check if we have any pretend trades in this batch
+        long pretendTradeCount = batch.stream()
+            .filter(p -> p.getPretendTrade() != null)
+            .count();
+        
+        // Notify the window only if we have processed relevant data
+        if (pretendTradeCount > 0 || batch.stream().anyMatch(p -> p.getCompletedChunk() != null)) {
+            Platform.runLater(() -> {
+                try {
+                    // Notify the window that new data is available
+                    window.onNewDataAvailable();
+                    
+                    // Update trade statistics if window is QuickReplayWindow
+                    if (window instanceof com.ibbe.fx.QuickReplayWindow) {
+                        ((com.ibbe.fx.QuickReplayWindow) window).updateTradeStatistics(
+                            totalRecordsReceived.get(), 
+                            getPretendTradeCount()
+                        );
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error updating UI: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            });
+        }
     }
     
     /**
@@ -403,7 +588,7 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
      * @param windowSize The size of the window.
      * @return A list containing the data points in the requested window.
      */
-    public List<PerformanceData> getDataWindow(int startIndex, int windowSize) {
+    public List<TradeSnapshot> getDataWindow(int startIndex, int windowSize) {
         synchronized (completeDataset) {
             if (completeDataset.isEmpty()) {
                 return new ArrayList<>();
@@ -467,154 +652,12 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     public int getPretendTradeCount() {
         synchronized (completeDataset) {
             int count = 0;
-            for (PerformanceData data : completeDataset) {
+            for (TradeSnapshot data : completeDataset) {
                 if (data.getPretendTrade() != null) {
                     count++;
                 }
             }
             return count;
-        }
-    }
-    
-    /**
-     * Handles incoming WebSocket messages.
-     * Parses performance data and updates the window.
-     */
-    @Override
-    public void handleTextMessage(WebSocketSession session, TextMessage message) {
-        try {
-            String payload = message.getPayload();
-//            System.out.println("Received WebSocket message: " + payload.substring(0, Math.min(200, payload.length())) + "...");
-            
-            // If processing is not active but we're receiving data, restart it
-            if (!processingActive.get()) {
-                System.out.println("Received data but processing is inactive, restarting processing thread");
-                ensureProcessingActive();
-            }
-            
-            // Try to deserialize the message directly into a PerformanceData object
-            try {
-                PerformanceData data = objectMapper.readValue(payload, PerformanceData.class);
-                
-                // Add the data to the queue for processing
-                if (data != null) {
-                    dataQueue.offer(data);
-//                    System.out.println("Successfully processed message and added to queue. Queue size: " + dataQueue.size());
-                } else {
-                    System.err.println("Deserialized data was null");
-                }
-            } catch (Exception e) {
-                // If direct deserialization fails, try to extract fields manually
-                System.err.println("Failed to deserialize message directly: " + payload);
-                e.printStackTrace();
-                
-                // Extract fields from the JSON message
-                JsonNode rootNode = objectMapper.readTree(payload);
-                PerformanceData data = new PerformanceData();
-                
-                // Extract basic fields
-                if (rootNode.has("sequence")) {
-                    data.setSequence(rootNode.get("sequence").asInt());
-                }
-                
-                if (rootNode.has("timestamp")) {
-                    data.setTimestamp(rootNode.get("timestamp").asLong());
-                }
-                
-                if (rootNode.has("tradePrice")) {
-                    data.setTradePrice(rootNode.get("tradePrice").asDouble());
-                }
-                
-                if (rootNode.has("tradeAmount")) {
-                    data.setTradeAmount(rootNode.get("tradeAmount").asDouble());
-                }
-                
-                if (rootNode.has("avgAskPrice")) {
-                    data.setAvgAskPrice(rootNode.get("avgAskPrice").asDouble());
-                }
-                
-                if (rootNode.has("avgAskAmount")) {
-                    data.setAvgAskAmount(rootNode.get("avgAskAmount").asDouble());
-                }
-                
-                if (rootNode.has("avgBidPrice")) {
-                    data.setAvgBidPrice(rootNode.get("avgBidPrice").asDouble());
-                }
-                
-                if (rootNode.has("avgBidAmount")) {
-                    data.setAvgBidAmount(rootNode.get("avgBidAmount").asDouble());
-                }
-                
-                // Extract pretend trade if present
-                if (rootNode.has("pretendTrade") && !rootNode.get("pretendTrade").isNull()) {
-                    JsonNode tradeNode = rootNode.get("pretendTrade");
-                    Trade trade = objectMapper.treeToValue(tradeNode, Trade.class);
-                    data.setPretendTrade(trade);
-                }
-                
-                // Extract trades display data if present
-                if (rootNode.has("tradesDisplayData") && !rootNode.get("tradesDisplayData").isNull()) {
-                    JsonNode displayDataNode = rootNode.get("tradesDisplayData");
-                    FxTradesDisplayData displayData = objectMapper.treeToValue(displayDataNode, FxTradesDisplayData.class);
-                    data.setFxTradesDisplayData(displayData);
-                }
-                
-                // Extract chunk profits if present
-                if (rootNode.has("chunkProfits") && !rootNode.get("chunkProfits").isNull()) {
-                    JsonNode profitsNode = rootNode.get("chunkProfits");
-                    List<BigDecimal> chunkProfits = new ArrayList<>();
-                    if (profitsNode.isArray()) {
-                        for (JsonNode profitNode : profitsNode) {
-                            chunkProfits.add(new BigDecimal(profitNode.asText()));
-                        }
-                    }
-                    data.setChunkProfits(chunkProfits);
-                }
-                
-                // Extract chunks list if present
-                if (rootNode.has("chunks") && !rootNode.get("chunks").isNull()) {
-                    JsonNode chunksNode = rootNode.get("chunks");
-                    List<ChunkInfo> chunks = new ArrayList<>();
-                    if (chunksNode.isArray()) {
-                        for (JsonNode chunkNode : chunksNode) {
-                            ChunkInfo chunk = objectMapper.treeToValue(chunkNode, ChunkInfo.class);
-                            chunks.add(chunk);
-                        }
-                    }
-                    data.setChunks(chunks);
-                    System.out.println("Extracted " + chunks.size() + " chunks from message");
-                }
-                
-                // Extract current chunk if present
-                if (rootNode.has("currentChunk") && !rootNode.get("currentChunk").isNull()) {
-                    JsonNode currentChunkNode = rootNode.get("currentChunk");
-                    ChunkInfo currentChunk = objectMapper.treeToValue(currentChunkNode, ChunkInfo.class);
-                    data.setCurrentChunk(currentChunk);
-                    System.out.println("Extracted current chunk from message");
-                }
-                
-                // Extract totalChunkCount if present
-                if (rootNode.has("totalChunkCount")) {
-                    int totalChunkCount = rootNode.get("totalChunkCount").asInt();
-                    data.setTotalChunkCount(totalChunkCount);
-                    System.out.println("Extracted totalChunkCount: " + totalChunkCount);
-                }
-                
-                // Add the data to the queue for processing
-                dataQueue.offer(data);
-                System.out.println("Successfully processed message manually and added to queue. Queue size: " + dataQueue.size());
-                
-                // Make sure processing is active for this new data
-                ensureProcessingActive();
-            }
-        } catch (Exception e) {
-            System.err.println("Error handling message: " + e.getMessage());
-            e.printStackTrace();
-            
-            // Update status to show the error
-            Platform.runLater(() -> {
-                window.updateStatus("Error: " + e.getMessage());
-            });
         }
     }
     
@@ -717,5 +760,102 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                 window.updateStatus("Error removing configuration: " + e.getMessage(), true);
             }
         });
+    }
+    
+    /**
+     * Gets the accumulated chunks for display in the UI.
+     * 
+     * @return A copy of the accumulated chunks list
+     */
+    public List<ChunkInfo> getAccumulatedChunks() {
+        return new ArrayList<>(accumulatedChunks);
+    }
+    
+    /**
+     * Gets the total profit from all accumulated chunks.
+     * Returns the precomputed running total rather than calculating on demand.
+     * 
+     * @return The sum of profits from all accumulated chunks
+     */
+    public BigDecimal getTotalChunkProfit() {
+        return totalChunkProfit.get();
+    }
+    
+    /**
+     * Checks memory usage and performs cleanup if necessary
+     */
+    private void checkMemoryUsage() {
+        Runtime runtime = Runtime.getRuntime();
+        long maxMemory = runtime.maxMemory();
+        long usedMemory = runtime.totalMemory() - runtime.freeMemory();
+        double usedPercentage = (double) usedMemory / maxMemory * 100;
+        
+        // Log memory usage periodically instead of randomly
+        int totalRecords = totalRecordsReceived.get();
+        if (totalRecords % 5000 == 0) {  // Reduced frequency - only log every 5000 records
+            System.out.println("Memory usage: " + String.format("%.2f", usedPercentage) + "% (" + 
+                (usedMemory / (1024 * 1024)) + "MB / " + (maxMemory / (1024 * 1024)) + "MB)");
+        }
+        
+        // If memory usage is high, perform cleanup - lowered threshold for earlier cleanup
+        if (usedPercentage > 60) {
+            System.out.println("WARNING: High memory usage detected (" + 
+                String.format("%.2f", usedPercentage) + "%), performing cleanup...");
+            cleanupMemory();
+        }
+    }
+    
+    /**
+     * Performs memory cleanup to prevent OutOfMemoryError
+     */
+    private void cleanupMemory() {
+        synchronized (completeDataset) {
+            // If we have a large dataset, trim it down significantly
+            if (completeDataset.size() > 5000) {
+                int keepCount = 2000;  // Keep the most recent 2000 entries
+                int removeCount = completeDataset.size() - keepCount;
+                
+                System.out.println("Trimming dataset from " + completeDataset.size() + 
+                    " to " + keepCount + " entries");
+                
+                // Remove older entries
+                completeDataset.subList(0, removeCount).clear();
+            }
+        }
+        
+        // Force garbage collection
+        System.gc();
+    }
+    
+    /**
+     * Restarts the data processing thread if it was stopped.
+     * This can be called when new data arrives but processing is inactive.
+     */
+    private void ensureProcessingActive() {
+        if (!processingActive.get() && session != null && session.isOpen()) {
+            System.out.println("Processing was inactive but session is open, restarting processing thread");
+            startProcessingData();
+        }
+    }
+    
+    /**
+     * Adds a data point to the complete dataset, respecting the maximum size limit.
+     * Memory optimization to prevent OOM errors.
+     *
+     * @param data The data point to add.
+     */
+    private void addToCompleteDataset(TradeSnapshot data) {
+        synchronized (completeDataset) {
+            // Add the new data point
+            completeDataset.add(data);
+            
+            // If we have too many records, remove the oldest ones
+            // Instead of constant pruning, only trim when significantly over limit
+            if (completeDataset.size() > MAX_RECORDS + 500) {
+                int removeCount = completeDataset.size() - MAX_RECORDS;
+                completeDataset.subList(0, removeCount).clear();
+            }
+        }
+        totalRecordsReceived.incrementAndGet();
     }
 } 

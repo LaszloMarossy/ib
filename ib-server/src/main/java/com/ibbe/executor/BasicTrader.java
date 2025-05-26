@@ -1,9 +1,8 @@
 package com.ibbe.executor;
 
-import com.ibbe.entity.FxTradesDisplayData;
 import com.ibbe.entity.Order;
 import com.ibbe.entity.OrderBookPayload;
-import com.ibbe.entity.PerformanceData;
+import com.ibbe.entity.TradeSnapshot;
 import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeConfig;
 import com.ibbe.entity.TrendData;
@@ -16,7 +15,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,8 +54,6 @@ public class BasicTrader {
   // set initial balances from config, but no latest price and recent trades!
   protected BigDecimal currencyBalance = new BigDecimal(PropertiesUtil.getProperty("starting.bal.currency")).setScale(2, RoundingMode.DOWN);
   protected BigDecimal coinBalance = new BigDecimal(PropertiesUtil.getProperty("starting.bal.coin")).setScale(8, RoundingMode.DOWN);
-  // the price of the first trade in the current chunk - kept so that we can calculate the profit of the current chunk
-  protected BigDecimal firstTradePrice = new BigDecimal(0);
   protected BigDecimal profit = new BigDecimal(0);
   protected final BigDecimal startingCurrencyBalance = currencyBalance;
   protected final BigDecimal startingCoinBalance = coinBalance;
@@ -65,9 +61,6 @@ public class BasicTrader {
 
   // Store the last processed trade for reference
   protected Trade lastProcessedTrade = null;
-
-  // Array to store profit/loss for each trading chunk
-  protected final List<BigDecimal> chunkProfits = new ArrayList<>();
 
   // Store detailed info about each chunk
   protected final List<ChunkInfo> chunks = new ArrayList<>();
@@ -79,6 +72,8 @@ public class BasicTrader {
   protected Instant currentChunkStartTime = null;
 
   // Track the first trade price of the current chunk
+  // the price of the first trade in the current chunk - kept so that we can calculate the profit of the current chunk
+//  protected BigDecimal firstTradePrice = new BigDecimal(0);
   protected BigDecimal currentChunkStartPrice = null;
 
   // Track the number of trades in the current chunk
@@ -175,7 +170,7 @@ public class BasicTrader {
    * - MA5<MA20 (short-term trend below long-term trend, indicating downward momentum).
    * - QAt>QBt (stronger selling interest).
    */
-  public PerformanceData makeTradeDecision(Trade trade, OrderBookPayload orderBook) {
+  public TradeSnapshot makeTradeDecision(Trade trade, OrderBookPayload orderBook) {
     // Skip if essential data is missing
     if (trade == null || trade.getNthStatus() == null ||
         trade.getTick() == null) {
@@ -183,36 +178,29 @@ public class BasicTrader {
       return null;
     }
 
-    // Calculate orderbook averages for trade
-    PerformanceData performanceData = calculateOrderbookAveragesForTrade(trade, orderBook);
+    // Calculate orderbook averages for trade and create the tradeSnapshot object representing the trade
+    TradeSnapshot tradeSnapshot = calculateOrderbookAveragesForTrade(trade, orderBook);
 
     // Handle time-based trade chunking and set FX display data
-    handleTradeChunks(trade, performanceData);
+    handleTradeChunks(tradeSnapshot);
 
-    // Add the new trade price to the queue, and as the latest price, before calculating trends
-    // this should be performed regardless of a pause in running the process
-    trendData.addTradePrice(trade.getPrice());
-    trendData.addTradeAmount(trade.getAmount());
-
-    // now calculate long and short term trends data
-    calculateTrends(performanceData, orderBook);
+    // now calculate long and short term trends data and update the tradeSnapshot object
+    calculateTrends(trade, tradeSnapshot, orderBook);
 
     // todo see if more of the trendData info can be used in trade decisions!
     Trade pretendTrade = null;
     try {
       // here make trade decision based on configuration
-      if (sellingTime(trade, performanceData)) {
+      if (sellingTime(trade, tradeSnapshot)) {
         pretendTrade = trade(trade, MARKER_SIDE_SELL);
-        updateBalances(pretendTrade);
-        updateDisplay(performanceData.getFxTradesDisplayData());
+        updateBalances(pretendTrade, tradeSnapshot);
       } else {
-        if (buyingTime(trade, performanceData)) {
+        if (buyingTime(trade, tradeSnapshot)) {
           pretendTrade = trade(trade, MARKER_SIDE_BUY);
-          updateBalances(pretendTrade);
-          updateDisplay(performanceData.getFxTradesDisplayData());
+          updateBalances(pretendTrade, tradeSnapshot);
         }
       }
-      performanceData.setPretendTrade(pretendTrade);
+      tradeSnapshot.setPretendTrade(pretendTrade);
     } catch (Exception e) {
       logger.error("Error in makeTradeDecision: {}", e.getMessage(), e);
     }
@@ -220,7 +208,7 @@ public class BasicTrader {
     // Save this trade as the last processed trade for future reference
     lastProcessedTrade = trade;
 
-    return performanceData;
+    return tradeSnapshot;
   }
 
   /**
@@ -231,7 +219,7 @@ public class BasicTrader {
    * QBt: the average amount of the top 20 bid amounts.
    * QAt: the average amount of the top 20 ask amounts.
    */
-  public PerformanceData calculateOrderbookAveragesForTrade(Trade trade, OrderBookPayload orderBook) {
+  public TradeSnapshot calculateOrderbookAveragesForTrade(Trade trade, OrderBookPayload orderBook) {
       // Calculate average ask price and amount
       BigDecimal totalAskPrice = BigDecimal.ZERO;
       BigDecimal totalAskAmount = BigDecimal.ZERO;
@@ -267,20 +255,16 @@ public class BasicTrader {
               : BigDecimal.ZERO;
 
       // Polulate performance data object
-      PerformanceData data = new PerformanceData();
+      TradeSnapshot data = new TradeSnapshot();
       data.setSequence(sequenceCounter.getAndIncrement());
       data.setTradeId(trade.getTid());
-      data.setTradePrice(trade.getPrice());
-      data.setTradeAmount(trade.getAmount());
-      data.setAvgAskPrice(avgAskPrice);
-      data.setAvgAskAmount(avgAskAmount);
-      data.setAvgBidPrice(avgBidPrice);
+      data.setTradePrice(trade.getPrice() == null ? 0d : trade.getPrice().doubleValue());
+      data.setTradeAmount(trade.getAmount() == null ? 0d : trade.getAmount().doubleValue());
+      data.setAvgAskPrice(avgAskPrice.doubleValue());
+      data.setAvgAskAmount(avgAskAmount.doubleValue());
+      data.setAvgBidPrice(avgBidPrice.doubleValue());
       data.setAvgBidAmount(avgBidAmount);
-      data.setTimestamp(System.currentTimeMillis());
-
-      // Also add profit chunks to the performance data
-      data.setChunkProfits(chunkProfits);
-
+      data.setTimestamp(trade.getCreatedAt());
       return data;
   }
 
@@ -288,17 +272,75 @@ public class BasicTrader {
    * Handles time-based trade chunking logic.
    * Detects time gaps between trades and manages trading chunks accordingly.
    *
-   * @param trade the current trade being processed
-   * @param performanceData the performance data to update with the FX display data
+   * @param tradeSnapshot the performance data to update with the FX display data
    */
-  protected void handleTradeChunks(Trade trade, PerformanceData performanceData) {
-    // Get the current trade timestamp
-    Instant currentTradeTimestamp = parseTradeTimestamp(trade);
-    if (currentTradeTimestamp == null) {
-      logger.warn("Could not parse timestamp for trade: {}", trade.getTid());
-      return;
+  protected void handleTradeChunks(TradeSnapshot tradeSnapshot) {
+    // Process the chunk transition if needed
+    if (weShouldStartNewChunk(tradeSnapshot)) {
+      // If this isn't the first trade ever, calculate the current chunk's profit before resetting
+      if (lastProcessedTrade != null) {
+        BigDecimal chunkProfit = calculateChunkProfit(tradeSnapshot);
+
+//        // Get last trade timestamp as milliseconds
+//        Instant lastTradeTimestamp = parseTradeTimestamp(lastProcessedTrade.getCreatedAt());
+//        long lastTradeTimeMillis = lastTradeTimestamp != null ? lastTradeTimestamp.toEpochMilli() : 0;
+
+        // Create and store chunk info using milliseconds
+        ChunkInfo completedChunk = new ChunkInfo(currentChunkNumber, chunkProfit, currentChunkStartPrice,
+            (lastProcessedTrade != null ? lastProcessedTrade.getPrice() : BigDecimal.ZERO),
+            currentChunkTradeCount, currentChunkStartTimeMillis, convertTimestampToMillis(lastProcessedTrade.getCreatedAt()));
+//        chunks.add(completedChunk);
+        
+        // Add this newly completed chunk to the snapshot data
+        // This way the client only receives the newly completed chunk
+        tradeSnapshot.setCompletedChunk(completedChunk);
+//        tradeSnapshot.setAccountValueInChunk(calculateAccountValue(tradeSnapshot));
+        logger.info("Added newly completed chunk {} to performance data", currentChunkNumber);
+
+        currentChunkNumber++;
+
+        logger.info("Saving profit of {} for completed trading chunk {}", chunkProfit, completedChunk.getChunkNumber());
+      }
+
+      // Initialize a new trading chunk with this trade
+      initNewChunk(tradeSnapshot);
+    } else {
+      // Increment trade count for the current chunk
+      currentChunkTradeCount++;
     }
 
+      // Set balance info regardless of whether we're in a new chunk
+
+//      tradeSnapshot.setCurrencyBalance(currencyBalance);
+//      tradeSnapshot.setCoinBalance(coinBalance);
+//      tradeSnapshot.setTradePrice(lastProcessedTrade != null ? lastProcessedTrade.getPrice().doubleValue() : 0d);
+
+      // Update profit and account value
+//      tradeSnapshot.setAccountValueInChunk(calculateAccountValue(tradeSnapshot));
+
+      // Add the current chunk info
+//        ChunkInfo currentChunk = new ChunkInfo(
+//            currentChunkNumber,
+//            calculateChunkProfit(),
+//            currentChunkStartPrice,
+//            BigDecimal.valueOf(tradeSnapshot.tradePrice),
+//            currentChunkTradeCount,
+//            currentChunkStartTimeMillis,
+//            convertTimestampToMillis(lastProcessedTrade.getCreatedAt())
+//        );
+//
+//        // Add current chunk info to performance data
+//        tradeSnapshot.setCurrentChunk(currentChunk);
+
+  }
+
+  protected boolean weShouldStartNewChunk(TradeSnapshot tradeSnapshot) {
+    // Get the current trade timestamp
+    Instant currentTradeTimestamp = parseTradeTimestamp(tradeSnapshot.getTimestamp());
+    if (currentTradeTimestamp == null) {
+      logger.warn("Could not parse timestamp for trade: {}", tradeSnapshot.getTradeId());
+      return false;
+    }
     // Get current trade timestamp as milliseconds
     long currentTradeTimeMillis = currentTradeTimestamp.toEpochMilli();
 
@@ -312,7 +354,7 @@ public class BasicTrader {
       logger.info("Processing very first trade, initializing first trading chunk");
     } else {
       // Check for time gap between this trade and previous one
-      Instant lastTradeTimestamp = parseTradeTimestamp(lastProcessedTrade);
+      Instant lastTradeTimestamp = parseTradeTimestamp(lastProcessedTrade.getCreatedAt());
 
       if (lastTradeTimestamp != null) {
         Duration gap = Duration.between(lastTradeTimestamp, currentTradeTimestamp);
@@ -321,104 +363,16 @@ public class BasicTrader {
           logger.info("Detected time gap of {} hours. Starting new trading chunk.", gap.toHours());
         }
       }
-
-      // For testing: Force new chunk creation every N trades
-      // Commented out to prevent creating new chunks every 20 trades
-      // This was causing too many chunks to be created, which is not the intended behavior
-      // Chunks should accumulate up to 20 trades but still be part of the same logical group
-      /*if (currentChunkTradeCount >= FORCE_NEW_CHUNK_EVERY_N_TRADES) {
-        shouldStartNewChunk = true;
-        logger.info("Forcing new chunk creation after {} trades", currentChunkTradeCount);
-      }*/
     }
-
-    // Process the chunk transition if needed
-    if (shouldStartNewChunk) {
-      // If this isn't the first trade ever, save current chunk's profit before resetting
-      if (lastProcessedTrade != null) {
-        BigDecimal chunkProfit = calculateProfit();
-        chunkProfits.add(chunkProfit);
-
-        // Get last trade timestamp as milliseconds
-        Instant lastTradeTimestamp = parseTradeTimestamp(lastProcessedTrade);
-        long lastTradeTimeMillis = lastTradeTimestamp != null ? lastTradeTimestamp.toEpochMilli() : 0;
-
-        // Create and store chunk info using milliseconds
-        ChunkInfo completedChunk = new ChunkInfo(
-            currentChunkNumber,
-            chunkProfit,
-            currentChunkStartPrice,
-            lastProcessedTrade.getPrice(),
-            currentChunkTradeCount,
-            currentChunkStartTimeMillis,
-            lastTradeTimeMillis
-        );
-        chunks.add(completedChunk);
-        currentChunkNumber++;
-
-        logger.info("Saving profit of {} for completed trading chunk {}", chunkProfit, chunkProfits.size());
-      }
-
-      // Initialize a new trading chunk with this trade
-      initNewChunk(trade);
-    } else {
-      // Increment trade count for the current chunk
-      currentChunkTradeCount++;
-    }
-
-    // Always create and initialize FxTradesDisplayData for the current performance data
-    if (performanceData != null) {
-      // Set balance info regardless of whether we're in a new chunk
-      FxTradesDisplayData fxData = new FxTradesDisplayData(
-          currencyBalance, coinBalance, getLastTradePrice(), new ArrayList<>()
-      );
-
-      // Update profit and account value
-      fxData.setProfit(calculateProfit());
-      fxData.setAccountValue(calculateAccountValue());
-
-      // Set total profit across all chunks
-      BigDecimal totalProfit = calculateTotalProfit();
-      fxData.setTotalProfit(totalProfit);
-
-      // Update the chunk profits in the display data
-      if (!chunkProfits.isEmpty()) {
-        fxData.setChunkProfits(new ArrayList<>(chunkProfits));
-      }
-
-      // Add chunk info list to performance data
-      if (!chunks.isEmpty()) {
-        performanceData.setChunks(new ArrayList<>(chunks));
-      }
-
-      // Add the current chunk info
-      if (currentChunkStartTimeMillis > 0) {
-        ChunkInfo currentChunk = new ChunkInfo(
-            currentChunkNumber,
-            calculateProfit(),
-            currentChunkStartPrice,
-            trade.getPrice(),
-            currentChunkTradeCount,
-            currentChunkStartTimeMillis,
-            currentTradeTimeMillis
-        );
-
-        // Add current chunk info to performance data
-        performanceData.setCurrentChunk(currentChunk);
-      }
-
-      // Update the performance data with the FX display data
-      performanceData.setFxTradesDisplayData(fxData);
-    }
+    return shouldStartNewChunk;
   }
-
   /**
    * Initializes a new trading chunk with the given trade.
    * Resets trend data, balances, and profit tracking for the new chunk.
    *
-   * @param trade the first trade in the new chunk
+   * @param tradeSnapshot TradeSnapshot the first trade in the new chunk
    */
-  private void initNewChunk(Trade trade) {
+  private void initNewChunk(TradeSnapshot tradeSnapshot) {
     // Reset for new chunk
     trendData.clear();
 
@@ -427,98 +381,68 @@ public class BasicTrader {
     coinBalance = new BigDecimal(PropertiesUtil.getProperty("starting.bal.coin")).setScale(8, RoundingMode.DOWN);
 
     // Set first trade price for this new chunk directly
-    firstTradePrice = trade.getPrice();
+    currentChunkStartPrice = BigDecimal.valueOf(tradeSnapshot.getTradePrice());
     profit = BigDecimal.ZERO;
 
     // Track chunk information
-    Instant timestamp = parseTradeTimestamp(trade);
+    Instant timestamp = parseTradeTimestamp(tradeSnapshot.getTimestamp());
     currentChunkStartTimeMillis = timestamp != null ? timestamp.toEpochMilli() : System.currentTimeMillis();
-    currentChunkStartPrice = trade.getPrice();
     currentChunkTradeCount = 1;
 
     logger.info("Initialized new trading chunk with first trade price: {} at time: {}",
-        firstTradePrice, timestamp);
+        currentChunkStartPrice, timestamp);
   }
 
-  /**
-   * Parses the timestamp from a trade
-   *
-   * @param trade the trade to parse timestamp from
-   * @return the parsed timestamp or null if unable to parse
-   */
-  private Instant parseTradeTimestamp(Trade trade) {
-    if (trade == null || trade.getCreatedAt() == null) {
-      return null;
-    }
-
-    try {
-      // Convert string timestamp to Instant
-      ZonedDateTime zonedDateTime = ZonedDateTime.parse(trade.getCreatedAt());
-      return zonedDateTime.toInstant();
-    } catch (Exception e) {
-      logger.warn("Failed to parse trade timestamp: {}", trade.getCreatedAt());
-      return null;
-    }
-  }
-
-  /**
-   * Gets the price of the last processed trade
-   *
-   * @return the last trade price or BigDecimal.ZERO if no trades processed
-   */
-  public BigDecimal getLastTradePrice() {
-    return lastProcessedTrade != null ? lastProcessedTrade.getPrice() : BigDecimal.ZERO;
-  }
-
-  /**
-   * Calculate the total profit across all chunks plus the current chunk
-   *
-   * @return total profit across all trading chunks
-   */
-  public BigDecimal calculateTotalProfit() {
-    BigDecimal totalChunkProfit = BigDecimal.ZERO;
-    for (BigDecimal profit : chunkProfits) {
-      totalChunkProfit = totalChunkProfit.add(profit);
-    }
-
-    // Add the current chunk's profit
-    totalChunkProfit = totalChunkProfit.add(calculateProfit());
-
-    return totalChunkProfit.setScale(2, RoundingMode.DOWN);
-  }
-
-  public BigDecimal calculateProfit() {
-    BigDecimal currentValue = calculateAccountValue();
-    BigDecimal originalValue = startingCoinBalance.multiply(firstTradePrice).add(startingCurrencyBalance).setScale(2, RoundingMode.DOWN);
+  public BigDecimal calculateChunkProfit(TradeSnapshot tradeSnapshot) {
+    BigDecimal currentValue = calculateAccountValue(tradeSnapshot);
+    BigDecimal originalValue = startingCoinBalance.multiply(currentChunkStartPrice).add(startingCurrencyBalance).setScale(2, RoundingMode.DOWN);
     profit = currentValue.subtract(originalValue).setScale(2, RoundingMode.DOWN);
     return profit;
   }
 
-  public BigDecimal calculateAccountValue() {
-    BigDecimal accountValue = coinBalance.multiply(getLastTradePrice()).add(currencyBalance).setScale(2, RoundingMode.DOWN);
-    return accountValue;
+  /**
+   * determine the account's current value WITHIN the current chunk of the trade being sent through it
+   * @param tradeSnapshot
+   * @return
+   */
+  public BigDecimal calculateAccountValue(TradeSnapshot tradeSnapshot) {
+    // important that this uses the last processed trade price, as that definitely belongs to the last chunk
+    // before a new one is initialized!
+    if (lastProcessedTrade != null ) {
+      return coinBalance.multiply(lastProcessedTrade.getPrice())
+          .add(currencyBalance).setScale(2, RoundingMode.DOWN);
+    } else {
+      // in case of the very first trade, use the trade price of the shipped trade's price
+      return startingCoinBalance.multiply(BigDecimal.valueOf(tradeSnapshot.tradePrice))
+          .add(startingCurrencyBalance).setScale(2, RoundingMode.DOWN);
+    }
   }
 
   /**
    * enhance the PeformanceData object with trends data, redying it for trading decisions and FX display
    * get all info into place for making trade decisions
    */
-  public void calculateTrends(PerformanceData performanceData, OrderBookPayload orderBook) {
-      performanceData.updateTradePriceRelToBest(orderBook);
-      performanceData.updateMovingAverages(trendData.getTradePricesQueue());
-      performanceData.updateSumOfTrade(lastProcessedTrade != null ? lastProcessedTrade.getPrice() : null);
+  public void calculateTrends(Trade trade, TradeSnapshot tradeSnapshot, OrderBookPayload orderBook) {
+    // Add the new trade price to the queue, and as the latest price, before calculating trends
+    // this should be performed regardless of a pause in running the process
+    trendData.addTradePrice(trade.getPrice());
+    trendData.addTradeAmount(trade.getAmount());
+
+    tradeSnapshot.updateTradePriceRelToBest(orderBook);
+    tradeSnapshot.updateMovingAverages(trendData.getTradePricesQueue());
+    tradeSnapshot.updateSumOfTrade(lastProcessedTrade != null ? lastProcessedTrade.getPrice() : null);
   }
 
   /**
    * Determines if it's time to sell based on the trade and performance data.
    *
    * @param trade the trade to evaluate
-   * @param performanceData the performance data for the trade
+   * @param tradeSnapshot the performance data for the trade
    * @return true if it's time to sell, false otherwise
    */
-  protected boolean sellingTime(Trade trade, PerformanceData performanceData) {
+  protected boolean sellingTime(Trade trade, TradeSnapshot tradeSnapshot) {
     // Check for null values to prevent NullPointerException
-    if (trade == null || performanceData == null || trade.getNthStatus() == null ||
+    if (trade == null || tradeSnapshot == null || trade.getNthStatus() == null ||
         trade.getTick() == null) {
       return false;
     }
@@ -531,27 +455,27 @@ public class BasicTrader {
     }
 
     if (useAvgBidVsAvgAsk) {
-      sellingTime = sellingTime && performanceData.avgBidAmount > performanceData.avgAskAmount;
+      sellingTime = sellingTime && tradeSnapshot.avgBidAmount > tradeSnapshot.avgAskAmount;
     }
 
     if (useShortVsLongMovAvg) {
-      sellingTime = sellingTime && performanceData.STMAPrice > performanceData.LTMAPrice;
+      sellingTime = sellingTime && tradeSnapshot.STMAPrice > tradeSnapshot.LTMAPrice;
     }
 
     if (useSumAmtUpVsDown) {
-      sellingTime = sellingTime && performanceData.SAUp > performanceData.SADown;
+      sellingTime = sellingTime && tradeSnapshot.SAUp > tradeSnapshot.SADown;
     }
 
     if (useTradePriceCloserToAskVsBuy) {
-      sellingTime = sellingTime && performanceData.priceCloserToBestAsk > 0;
+      sellingTime = sellingTime && tradeSnapshot.priceCloserToBestAsk > 0;
     }
 
     return sellingTime;
   }
 
-  protected boolean buyingTime(Trade trade, PerformanceData performanceData) {
+  protected boolean buyingTime(Trade trade, TradeSnapshot tradeSnapshot) {
     // Check for null values to prevent NullPointerException
-    if (trade == null || performanceData == null || trade.getNthStatus() == null ||
+    if (trade == null || tradeSnapshot == null || trade.getNthStatus() == null ||
         trade.getTick() == null) {
       return false;
     }
@@ -565,19 +489,19 @@ public class BasicTrader {
     }
 
     if (useAvgBidVsAvgAsk) {
-      buyingTime = buyingTime && performanceData.avgBidAmount < performanceData.avgAskAmount;
+      buyingTime = buyingTime && tradeSnapshot.avgBidAmount < tradeSnapshot.avgAskAmount;
     }
 
     if (useShortVsLongMovAvg) {
-      buyingTime = buyingTime && performanceData.STMAPrice < performanceData.LTMAPrice;
+      buyingTime = buyingTime && tradeSnapshot.STMAPrice < tradeSnapshot.LTMAPrice;
     }
 
     if (useSumAmtUpVsDown) {
-      buyingTime = buyingTime && performanceData.SAUp < performanceData.SADown;
+      buyingTime = buyingTime && tradeSnapshot.SAUp < tradeSnapshot.SADown;
     }
 
     if (useTradePriceCloserToAskVsBuy) {
-      buyingTime = buyingTime && performanceData.priceCloserToBestAsk < 0;
+      buyingTime = buyingTime && tradeSnapshot.priceCloserToBestAsk < 0;
     }
 
     return buyingTime;
@@ -616,7 +540,7 @@ public class BasicTrader {
    * Updates account balances after a trade execution.
    * Handles both buy and sell scenarios with their respective fees.
    */
-  protected void updateBalances(Trade pretendTrade) {
+  protected void updateBalances(Trade pretendTrade, TradeSnapshot tradeSnapshot) {
     if (pretendTrade.getAmount() == null || pretendTrade.getPrice() == null) {
       logger.warn("Cannot update balances with null balance or trade values");
       return;
@@ -637,127 +561,55 @@ public class BasicTrader {
       }
       default -> logger.info("!!! WRONG MARKER SIDE: {}", pretendTrade.getMakerSide());
     }
+    // set fields for the display too
+    tradeSnapshot.setCurrencyBalance(currencyBalance);
+    tradeSnapshot.setCoinBalance(coinBalance);
+    // pretend trades in chunks would carry this snapshot acct value
+    tradeSnapshot.setAccountValueInChunk(calculateAccountValue(tradeSnapshot));
+
   }
 
-  protected void updateDisplay(FxTradesDisplayData fxTradesDisplayData) {
-    fxTradesDisplayData.setCurrencyBalance(currencyBalance);
-    fxTradesDisplayData.setCoinBalance(coinBalance);
-    fxTradesDisplayData.setProfit(calculateProfit());
-    fxTradesDisplayData.setAccountValue(calculateAccountValue());
-
-    // Also calculate total profit across all chunks
-    BigDecimal totalProfit = calculateTotalProfit();
-    fxTradesDisplayData.setTotalProfit(totalProfit);
-  }
-
-  public BigDecimal getCoinBalance() {
-    return coinBalance;
-  }
-
-  public void setCoinBalance(BigDecimal coinBalance) {
-    this.coinBalance = coinBalance;
-  }
-
-  public BigDecimal getCurrencyBalance() {
-    return currencyBalance;
-  }
-
-  public void setCurrencyBalance(BigDecimal currencyBalance) {
-    this.currencyBalance = currencyBalance;
-  }
-
-  public BigDecimal getProfit() { return profit; }
-
-  public List<BigDecimal> getChunkProfits() {
-    return chunkProfits;
-  }
-
-  public Trade getLastProcessedTrade() {
-    return lastProcessedTrade;
-  }
 
   /**
-   * Gets the detailed trading chunk information
+   * Parses the timestamp from a trade
    *
-   * @return A list of all completed trading chunks
+   * @param tradeTimestamp the createdAt string of the trade
+   * @return the Instant or null if unable to parse
    */
-  public List<ChunkInfo> getChunks() {
-    return new ArrayList<>(chunks);
-  }
-
-  /**
-   * Gets the latest performance data for a specific configuration.
-   * This method is called by the PerformanceAnalysisEndpoint to send data to clients.
-   *
-   * @param configId The configuration ID
-   * @return The latest performance data
-   */
-  public PerformanceData getLatestPerformanceData(String configId) {
-    // Create a new performance data object with the current state
-    PerformanceData data = new PerformanceData();
-
-    // Set the chunks and current chunk info
-    data.setChunks(getChunks());
-    data.setCurrentChunk(getCurrentChunkInfo());
-    data.setTotalChunkCount(chunks.size());
-
-    // Set the chunk profits for easier access
-    data.setChunkProfits(getChunkProfits());
-
-    // Create and set FX trades display data
-    FxTradesDisplayData displayData = new FxTradesDisplayData();
-    displayData.setCurrencyBalance(getCurrencyBalance());
-    displayData.setCoinBalance(getCoinBalance());
-    displayData.setProfit(getProfit());
-
-    // Calculate additional financial metrics
-    displayData.setAccountValue(calculateAccountValue());
-    displayData.setTotalProfit(calculateTotalProfit());
-
-    // Set the latest price if we have a last processed trade
-    if (getLastProcessedTrade() != null) {
-      displayData.setLatestPrice(getLastProcessedTrade().getPrice());
-    }
-
-    data.setFxTradesDisplayData(displayData);
-
-    return data;
-  }
-
-  /**
-   * Gets information about the current trading chunk
-   *
-   * @return Current chunk info or null if no chunk is active
-   */
-  public ChunkInfo getCurrentChunkInfo() {
-    if (lastProcessedTrade == null || currentChunkStartTimeMillis == 0) {
+  private Instant parseTradeTimestamp(String tradeTimestamp) {
+     try {
+      // Convert string timestamp to Instant
+      ZonedDateTime zonedDateTime = ZonedDateTime.parse(tradeTimestamp);
+      return zonedDateTime.toInstant();
+    } catch (Exception e) {
+      logger.warn("Failed to parse trade timestamp: {}", tradeTimestamp);
       return null;
     }
-
-    // Get the last trade timestamp as milliseconds directly
-    long lastTradeTimeMillis = 0;
-    if (lastProcessedTrade.getCreatedAt() != null) {
-      try {
-        // Parse the timestamp string directly to get milliseconds
-        ZonedDateTime zonedDateTime = ZonedDateTime.parse(lastProcessedTrade.getCreatedAt());
-        lastTradeTimeMillis = zonedDateTime.toInstant().toEpochMilli();
-      } catch (Exception e) {
-        // Use current time as fallback
-        lastTradeTimeMillis = System.currentTimeMillis();
-      }
-    } else {
-      // Use current time as fallback
-      lastTradeTimeMillis = System.currentTimeMillis();
-    }
-
-    return new ChunkInfo(
-        currentChunkNumber,
-        calculateProfit(),
-        currentChunkStartPrice,
-        lastProcessedTrade.getPrice(),
-        currentChunkTradeCount,
-        currentChunkStartTimeMillis,
-        lastTradeTimeMillis
-    );
   }
+
+
+  /**
+   * Converts an ISO-8601 timestamp string to milliseconds since epoch
+   * @param timestampStr String in format "2025-05-22T13:20:49.930Z"
+   * @return milliseconds since epoch
+   */
+  private long convertTimestampToMillis(String timestampStr) {
+      try {
+          return Instant.parse(timestampStr).toEpochMilli();
+      } catch (Exception e) {
+          System.err.println("Error parsing timestamp: " + timestampStr);
+          return System.currentTimeMillis(); // fallback to current time
+      }
+  }
+
+  /**
+   * Gets the price of the last processed trade
+   *
+   * @return the last trade price or BigDecimal.ZERO if no trades processed
+   */
+  public BigDecimal getLastTradePrice() {
+    return lastProcessedTrade != null ? lastProcessedTrade.getPrice() : BigDecimal.ZERO;
+  }
+
+
 }

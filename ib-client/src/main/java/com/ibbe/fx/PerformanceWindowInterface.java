@@ -1,6 +1,6 @@
 package com.ibbe.fx;
 
-import com.ibbe.entity.PerformanceData;
+import com.ibbe.entity.TradeSnapshot;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -9,6 +9,12 @@ import java.util.List;
  * for any window that wants to display performance analysis data.
  */
 public interface PerformanceWindowInterface {
+
+    
+    /**
+     * Called when a new data is received from the server.
+     */
+    void onNewDataAvailable();
     
     /**
      * Gets the mode of operation (1 for visual replay, 2 for quick replay)
@@ -41,19 +47,10 @@ public interface PerformanceWindowInterface {
     /**
      * Process a list of window data and update the display
      */
-    void updateTradeHistory(List<PerformanceData> windowData);
-    
-    /**
-     * Called when the client has new data available
-     */
-    default void onNewDataAvailable() {
-        // Default implementation is empty
-    }
+    void updateTradeHistory(List<TradeSnapshot> windowData);
     
     /**
      * Update the balance display with current values
      */
-    default void updateBalanceDisplay(BigDecimal currency, BigDecimal coin, BigDecimal profit) {
-        // Default implementation is empty
-    }
+    void updateBalanceDisplay(BigDecimal currency, BigDecimal coin, BigDecimal profit);
 } 

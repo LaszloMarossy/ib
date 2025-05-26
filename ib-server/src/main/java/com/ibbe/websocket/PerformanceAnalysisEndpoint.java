@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.ibbe.entity.OrderBookPayload;
-import com.ibbe.entity.PerformanceData;
+import com.ibbe.entity.TradeSnapshot;
 import com.ibbe.entity.TradeConfig;
 import com.ibbe.entity.ChunkInfo;
 import com.ibbe.executor.BasicTrader;
@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * WebSocket endpoint for performance analysis.
@@ -57,7 +58,7 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
     }
     
     /**
-     * Handles incoming WS messages from PerformanceAnalysisClient on the FX side.
+     * Receives the triggering WS message from PerformanceAnalysisClient on the FX side.
      * Expects a TradeConfig object as the message payload.
      * Start the Kafka consumer in a separate thread
      *
@@ -96,8 +97,8 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
     }
     
     /**
-     * Initiates the processing of all Trades stored in Kafka, by calling the TradesConsumer
-     * defines and registers the MessageHandler for the Kafka message consumer
+     * retrieve and process all Trades stored in Kafka
+     * defines the MessageHandler for the Kafka message consumer
      * and sends performance data to the client.
      */
     private void analyzeTradeConfigPerf(WebSocketSession session, TradeConfig config, AtomicBoolean isRunning) {
@@ -108,8 +109,12 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
 
             // objects to keep track of performance over many of the played back kafka trades
             final BasicTrader trader = new BasicTrader(config);
+            
+            // Add processing rate control to avoid overwhelming the client
+            final AtomicInteger messageCounter = new AtomicInteger(0);
+            final long startTime = System.currentTimeMillis();
 
-            // Register message handler
+            // Register message handler - for each Kafka message call...
             sessionConsumer.registerMessageHandler(trade -> {
 
                  /**
@@ -120,19 +125,20 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
                 }
                 
                 try {
-//                    FxTradesDisplayData fxTradesDisplayData = getFxTradesDisplayData(
-//                        trade, trader.getCurrencyBalance(), trader.getCoinBalance());
                     // Extract orderbook data if available
                     OrderBookPayload orderBook = trade.getObp();
                     if (orderBook != null) {
                         // here make trade decision based on configuration
-                        PerformanceData performanceData = trader.makeTradeDecision(trade, orderBook);
+                        TradeSnapshot tradeSnapshot = trader.makeTradeDecision(trade, orderBook);
 
-                        // Send data to client
-                        String jsonData = objectMapper.writeValueAsString(performanceData);
-                        session.sendMessage(new TextMessage(jsonData));
+                        // we are only interested in records that have pretend trades OR chunk info
+                        // TODO this is not going to work for the chart window, so separate impl
+                        if (tradeSnapshot.getPretendTrade() != null || tradeSnapshot.getCompletedChunk() != null) {
+                            // Send data to client
+                            String jsonData = objectMapper.writeValueAsString(tradeSnapshot);
+                            session.sendMessage(new TextMessage(jsonData));
+                        }
                     }
-
                     return true; // Continue processing
                 } catch (IOException e) {
                     LOGGER.error("Error sending performance data to client", e);

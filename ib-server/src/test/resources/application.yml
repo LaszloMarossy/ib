@@ -1,0 +1,13 @@
+spring:
+  main:
+    banner-mode: off
+  logging:
+    config: classpath:logback-test.xml
+
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO
+    com.ibbe: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n" 

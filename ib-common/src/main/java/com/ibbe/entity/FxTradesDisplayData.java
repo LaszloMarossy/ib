@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * represents trading info needed by the FX UI
@@ -20,17 +19,16 @@ public class FxTradesDisplayData {
   private BigDecimal currencyBalance;
   private BigDecimal coinBalance;
   private BigDecimal latestPrice;
+  // recent trades from websocket - should be maintained by the FX and not the data object carrying trades..
+  private ArrayList<Trade> recentTrades;
+  // these values are now tied to the chunks
   private BigDecimal startingAccountValue;
   private BigDecimal profit;
-  private BigDecimal accountValue;
-  // Total profit across all trading chunks
-  private BigDecimal totalProfit = BigDecimal.ZERO;
+  // carried for each trade, this indicates the account value in the current chunk
+  // this means that this is always based on the chunk balances in effect
+  private BigDecimal accountValueInChunk;
 
-  // recent trades from websocket
-  private ArrayList<Trade> recentTrades;
-  
-  // Profit/loss for each trading chunk
-  private List<BigDecimal> chunkProfits = new ArrayList<>();
+
 
   // Default constructor for deserialization
   public FxTradesDisplayData() {
@@ -39,7 +37,6 @@ public class FxTradesDisplayData {
     this.latestPrice = BigDecimal.ZERO;
     this.recentTrades = new ArrayList<>();
     this.startingAccountValue = BigDecimal.ZERO;
-    this.totalProfit = BigDecimal.ZERO;
   }
 
   // constructor for ObjectMapper
@@ -54,9 +51,6 @@ public class FxTradesDisplayData {
     this.recentTrades = recentTrades != null ? recentTrades : new ArrayList<>();
     // derives from coin an currency balance..
     this.startingAccountValue = BigDecimal.ZERO;
-//    this.accountValue = startingAccountValue;
-//    this.profit = new BigDecimal(0);
-    this.totalProfit = BigDecimal.ZERO;
   }
 
   public ArrayList<Trade> getRecentTrades() {
@@ -67,11 +61,11 @@ public class FxTradesDisplayData {
     if (recentTrade == null) {
       return;
     }
-    
+
     if (recentTrades == null) {
       recentTrades = new ArrayList<>();
     }
-    
+
     recentTrades.add(recentTrade);
     if (recentTrades.size() > Integer.parseInt(PropertiesUtil.getProperty("displaydata.numberoftrades"))) {
       recentTrades.remove(0);
@@ -102,15 +96,11 @@ public class FxTradesDisplayData {
 
   public void setLatestPrice(BigDecimal latestPrice) {
     this.latestPrice = latestPrice;
-    // Don't recalculate profit when only the price changes
-    // Profit should only change when balances change (i.e., when trades occur)
-    // this.profit = calculateProfit();
   }
 
   public BigDecimal getStartingAccountValue() {
     return startingAccountValue;
   }
-
 
   public void setStartingAccountValue(BigDecimal startingAccountValue) {
     this.startingAccountValue = startingAccountValue;
@@ -123,31 +113,13 @@ public class FxTradesDisplayData {
   public void setProfit(BigDecimal profit) {
     this.profit = profit;
   }
-  
-  public BigDecimal getTotalProfit() {
-    return totalProfit;
-  }
-  
-  public void setTotalProfit(BigDecimal totalProfit) {
-    this.totalProfit = totalProfit;
-  }
-  
-  public List<BigDecimal> getChunkProfits() {
-    return chunkProfits;
-  }
-  
-  public void setChunkProfits(List<BigDecimal> chunkProfits) {
-    this.chunkProfits = chunkProfits;
+
+  public BigDecimal getAccountValueInChunk() {
+    return accountValueInChunk;
   }
 
-  public BigDecimal getAccountValue() {
-    return accountValue;
+  public void setAccountValueInChunk(BigDecimal accountValueInChunk) {
+    this.accountValueInChunk = accountValueInChunk;
   }
-
-  public void setAccountValue(BigDecimal accountValue) {
-    this.accountValue = accountValue;
-  }
-
-
 
 }
