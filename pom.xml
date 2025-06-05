@@ -13,14 +13,13 @@
     
     <properties>
         <java.version>21</java.version>
-        <spring-boot.version>3.5.0</spring-boot.version>
+        <spring-boot.version>3.3.0</spring-boot.version>
         <javafx.version>21-ea+24</javafx.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring.version>6.2.7</spring.version>
         <jackson.version>2.16.1</jackson.version>
         <testfx.version>4.0.17</testfx.version>
         <junit.version>5.10.2</junit.version>
-        <mockito.version>5.11.0</mockito.version>
         <surefire.version>3.2.5</surefire.version>
     </properties>
     
@@ -125,21 +124,29 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-test</artifactId>
                 <version>${spring-boot.version}</version>
+                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.testfx</groupId>
                 <artifactId>testfx-core</artifactId>
                 <version>${testfx.version}</version>
+                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter</artifactId>
                 <version>${junit.version}</version>
+                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.mockito</groupId>
                 <artifactId>mockito-core</artifactId>
-                <version>${mockito.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-junit-jupiter</artifactId>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -201,12 +208,6 @@
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
         
@@ -278,4 +279,12 @@
             </plugins>
         </pluginManagement>
     </build>
+    
+    <modules>
+        <module>ib-common</module>
+        <module>ib-client</module>
+        <module>ib-server</module>
+        <!-- any other modules -->
+    </modules>
+
 </project> 

@@ -167,7 +167,7 @@ public class BasicTrader {
    * - Vup > Vdown (sum of amounts for trades where Pt > Pt−1 or where Pt > Pt−1 over the last NN trades).
    * <p>
    * Sell signal:
-   * - MA5<MA20 (short-term trend below long-term trend, indicating downward momentum).
+   * - MA5 < MA20 (short-term trend below long-term trend, indicating downward momentum).
    * - QAt>QBt (stronger selling interest).
    */
   public TradeSnapshot makeTradeDecision(Trade trade, OrderBookPayload orderBook) {

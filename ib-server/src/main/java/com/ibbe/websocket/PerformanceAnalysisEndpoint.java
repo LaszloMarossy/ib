@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.ibbe.entity.OrderBookPayload;
+import com.ibbe.entity.Trade;
 import com.ibbe.entity.TradeSnapshot;
 import com.ibbe.entity.TradeConfig;
 import com.ibbe.entity.ChunkInfo;
@@ -30,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
  * WebSocket endpoint for performance analysis.
@@ -48,8 +50,17 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
     // Map to store consumer instances
     private final Map<String, TradesConsumer> sessionConsumers = new HashMap<>();
     
+    private final Supplier<TradesConsumer> tradesConsumerSupplier;
+    
+    // Constructor for Spring
     public PerformanceAnalysisEndpoint() {
-        this.objectMapper = new ObjectMapper();
+        this(new ObjectMapper(), TradesConsumer::new); // Default supplier
+    }
+
+    // Constructor for injection (and testing)
+    public PerformanceAnalysisEndpoint(ObjectMapper objectMapper, Supplier<TradesConsumer> tradesConsumerSupplier) {
+        this.objectMapper = objectMapper;
+        this.tradesConsumerSupplier = tradesConsumerSupplier;
         
         // Register serializer for ChunkInfo class
         SimpleModule module = new SimpleModule();
@@ -103,8 +114,8 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
      */
     private void analyzeTradeConfigPerf(WebSocketSession session, TradeConfig config, AtomicBoolean isRunning) {
         try {
-            // Create a new consumer instance for this session to consume kafka records
-            TradesConsumer sessionConsumer = new TradesConsumer();
+            // Get consumer from supplier
+            TradesConsumer sessionConsumer = tradesConsumerSupplier.get();
             sessionConsumer.startConsumer();
 
             // objects to keep track of performance over many of the played back kafka trades
@@ -116,34 +127,10 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
 
             // Register message handler - for each Kafka message call...
             sessionConsumer.registerMessageHandler(trade -> {
-
-                 /**
-                 * The Historical trades/orderbook message processing logic comes here!!!
-                 */
-                if (!isRunning.get() || !session.isOpen()) {
-                    return false; // Stop processing
-                }
-                
-                try {
-                    // Extract orderbook data if available
-                    OrderBookPayload orderBook = trade.getObp();
-                    if (orderBook != null) {
-                        // here make trade decision based on configuration
-                        TradeSnapshot tradeSnapshot = trader.makeTradeDecision(trade, orderBook);
-
-                        // we are only interested in records that have pretend trades OR chunk info
-                        // TODO this is not going to work for the chart window, so separate impl
-                        if (tradeSnapshot.getPretendTrade() != null || tradeSnapshot.getCompletedChunk() != null) {
-                            // Send data to client
-                            String jsonData = objectMapper.writeValueAsString(tradeSnapshot);
-                            session.sendMessage(new TextMessage(jsonData));
-                        }
-                    }
-                    return true; // Continue processing
-                } catch (IOException e) {
-                    LOGGER.error("Error sending performance data to client", e);
-                    return false; // Stop processing on error
-                }
+                // Delegate to a testable method
+                return processKafkaTradeForPerformanceAnalysis(
+                        trade, session, isRunning, trader, this.objectMapper
+                );
             });
 
             // Store the consumer in a map for cleanup
@@ -167,6 +154,37 @@ public class PerformanceAnalysisEndpoint extends TextWebSocketHandler {
         }
     }
 
+    /**
+     * Processes a single Kafka trade for performance analysis.
+     * This method contains the core logic originally in the lambda.
+     * Made package-private for testability.
+     *
+     * @param trade        The trade to process.
+     * @param session      The WebSocket session.
+     * @param isRunning    The running flag for the session.
+     * @param trader       The BasicTrader instance for decision making.
+     * @param objectMapper The ObjectMapper for JSON serialization.
+     * @return True to continue processing, false to stop.
+     */
+    boolean processKafkaTradeForPerformanceAnalysis(Trade trade, WebSocketSession session, AtomicBoolean isRunning, BasicTrader trader, ObjectMapper objectMapper) {
+        if (!isRunning.get() || !session.isOpen()) {
+            return false; // Stop processing
+        }
+        try {
+            OrderBookPayload orderBook = trade.getObp();
+            if (orderBook != null) {
+                TradeSnapshot tradeSnapshot = trader.makeTradeDecision(trade, orderBook);
+                if (tradeSnapshot.getPretendTrade() != null || tradeSnapshot.getCompletedChunk() != null) {
+                    String jsonData = objectMapper.writeValueAsString(tradeSnapshot);
+                    session.sendMessage(new TextMessage(jsonData));
+                }
+            }
+            return true; // Continue processing
+        } catch (IOException e) {
+            LOGGER.error("Error sending performance data to client for session {}", session.getId(), e);
+            return false; // Stop processing on error
+        }
+    }
 
     /**
      * Sends an error message to the client.

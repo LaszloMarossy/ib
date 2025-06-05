@@ -1,0 +1,398 @@
+[[1;34mINFO[m] Scanning for projects...
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] [1mBuilding ib-server 0.0.1-SNAPSHOT[m
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-dependency-plugin:2.8:tree[m [1m(default-cli)[m @ [36mib-server[0;1m ---[m
+[[1;34mINFO[m] com.ibbe:ib-server:jar:0.0.1-SNAPSHOT
+[[1;34mINFO[m] +- com.ibbe:ib-common:jar:0.0.1-SNAPSHOT:compile
+[[1;34mINFO[m] |  +- org.springframework:spring-context:jar:6.2.7:compile
+[[1;34mINFO[m] |  |  +- org.springframework:spring-aop:jar:6.1.8:compile (version managed from 6.2.7)
+[[1;34mINFO[m] |  |  |  +- (org.springframework:spring-beans:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.springframework:spring-beans:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.springframework:spring-expression:jar:6.1.8:compile (version managed from 6.2.7)
+[[1;34mINFO[m] |  |  |  \- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (io.micrometer:micrometer-observation:jar:1.13.0:compile - version managed from 1.14.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework:spring-web:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework:spring-websocket:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework:spring-messaging:jar:6.2.7:compile - version managed from 6.1.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- jakarta.annotation:jakarta.annotation-api:jar:2.1.1:compile
+[[1;34mINFO[m] |  +- org.slf4j:slf4j-api:jar:2.0.9:compile
+[[1;34mINFO[m] |  +- (com.fasterxml.jackson.core:jackson-core:jar:2.16.1:compile - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:compile - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.openjfx:javafx-graphics:jar:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.openjfx:javafx-controls:jar:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.openjfx:javafx-fxml:jar:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework.boot:spring-boot-starter:jar:3.3.0:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework.boot:spring-boot-starter-websocket:jar:3.3.0:compile - omitted for duplicate)
+[[1;34mINFO[m] |  \- (org.apache.tomcat.embed:tomcat-embed-websocket:jar:10.1.24:compile - omitted for duplicate)
+[[1;34mINFO[m] +- org.springframework.boot:spring-boot-starter:jar:3.3.0:compile
+[[1;34mINFO[m] |  +- org.springframework.boot:spring-boot:jar:3.3.0:compile
+[[1;34mINFO[m] |  |  +- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.springframework:spring-context:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework.boot:spring-boot-autoconfigure:jar:3.3.0:compile
+[[1;34mINFO[m] |  |  \- (org.springframework.boot:spring-boot:jar:3.3.0:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework.boot:spring-boot-starter-logging:jar:3.3.0:compile
+[[1;34mINFO[m] |  |  +- ch.qos.logback:logback-classic:jar:1.5.6:compile
+[[1;34mINFO[m] |  |  |  +- ch.qos.logback:logback-core:jar:1.5.6:compile
+[[1;34mINFO[m] |  |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:compile - version managed from 2.0.13; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.apache.logging.log4j:log4j-to-slf4j:jar:2.23.1:compile
+[[1;34mINFO[m] |  |  |  +- org.apache.logging.log4j:log4j-api:jar:2.23.1:compile
+[[1;34mINFO[m] |  |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:compile - version managed from 2.0.13; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- org.slf4j:jul-to-slf4j:jar:2.0.13:compile
+[[1;34mINFO[m] |  |     \- (org.slf4j:slf4j-api:jar:2.0.9:compile - version managed from 2.0.13; omitted for duplicate)
+[[1;34mINFO[m] |  +- (jakarta.annotation:jakarta.annotation-api:jar:2.1.1:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework:spring-core:jar:6.1.8:compile
+[[1;34mINFO[m] |  |  \- org.springframework:spring-jcl:jar:6.1.8:compile
+[[1;34mINFO[m] |  \- org.yaml:snakeyaml:jar:2.2:compile
+[[1;34mINFO[m] +- org.springframework.boot:spring-boot-starter-web:jar:3.3.0:compile
+[[1;34mINFO[m] |  +- (org.springframework.boot:spring-boot-starter:jar:3.3.0:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework.boot:spring-boot-starter-json:jar:3.3.0:compile
+[[1;34mINFO[m] |  |  +- (org.springframework.boot:spring-boot-starter:jar:3.3.0:compile - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.springframework:spring-web:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:compile - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- com.fasterxml.jackson.datatype:jackson-datatype-jdk8:jar:2.17.1:compile
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-core:jar:2.16.1:compile - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:compile - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:jar:2.17.1:compile
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-annotations:jar:2.17.1:compile - version managed from 2.16.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-core:jar:2.16.1:compile - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:compile - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- com.fasterxml.jackson.module:jackson-module-parameter-names:jar:2.17.1:compile
+[[1;34mINFO[m] |  |     +- (com.fasterxml.jackson.core:jackson-core:jar:2.16.1:compile - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |     \- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:compile - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework.boot:spring-boot-starter-tomcat:jar:3.3.0:compile
+[[1;34mINFO[m] |  |  +- (jakarta.annotation:jakarta.annotation-api:jar:2.1.1:compile - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.tomcat.embed:tomcat-embed-core:jar:10.1.24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.apache.tomcat.embed:tomcat-embed-el:jar:10.1.24:compile
+[[1;34mINFO[m] |  |  \- (org.apache.tomcat.embed:tomcat-embed-websocket:jar:10.1.24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework:spring-web:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] |  \- org.springframework:spring-webmvc:jar:6.1.8:compile
+[[1;34mINFO[m] |     +- (org.springframework:spring-aop:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |     +- (org.springframework:spring-beans:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |     +- (org.springframework:spring-context:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] |     +- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |     +- (org.springframework:spring-expression:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |     \- (org.springframework:spring-web:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] +- org.springframework.boot:spring-boot-starter-websocket:jar:3.3.0:compile
+[[1;34mINFO[m] |  +- (org.springframework.boot:spring-boot-starter-web:jar:3.3.0:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework:spring-messaging:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] |  \- (org.springframework:spring-websocket:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] +- org.springframework.kafka:spring-kafka:jar:3.2.0:compile
+[[1;34mINFO[m] |  +- (org.springframework:spring-context:jar:6.2.7:compile - version managed from 6.1.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework:spring-messaging:jar:6.2.7:compile - version managed from 6.1.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework:spring-tx:jar:6.1.8:compile (version managed from 6.1.7)
+[[1;34mINFO[m] |  |  +- (org.springframework:spring-beans:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework.retry:spring-retry:jar:2.0.6:compile
+[[1;34mINFO[m] |  +- org.apache.kafka:kafka-clients:jar:3.7.0:compile
+[[1;34mINFO[m] |  |  +- com.github.luben:zstd-jni:jar:1.5.5-6:runtime
+[[1;34mINFO[m] |  |  +- org.lz4:lz4-java:jar:1.8.0:runtime
+[[1;34mINFO[m] |  |  +- org.xerial.snappy:snappy-java:jar:1.1.10.5:runtime
+[[1;34mINFO[m] |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:runtime - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  \- io.micrometer:micrometer-observation:jar:1.13.0:compile
+[[1;34mINFO[m] |     \- io.micrometer:micrometer-commons:jar:1.13.0:compile
+[[1;34mINFO[m] +- org.springframework.boot:spring-boot-devtools:jar:3.3.0:runtime
+[[1;34mINFO[m] |  +- (org.springframework.boot:spring-boot:jar:3.3.0:runtime - omitted for duplicate)
+[[1;34mINFO[m] |  \- (org.springframework.boot:spring-boot-autoconfigure:jar:3.3.0:runtime - omitted for duplicate)
+[[1;34mINFO[m] +- org.springframework.boot:spring-boot-starter-test:jar:3.3.0:test
+[[1;34mINFO[m] |  +- (org.springframework.boot:spring-boot-starter:jar:3.3.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework.boot:spring-boot-test:jar:3.3.0:test
+[[1;34mINFO[m] |  |  +- (org.springframework.boot:spring-boot:jar:3.3.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.springframework:spring-test:jar:6.2.7:test - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework.boot:spring-boot-test-autoconfigure:jar:3.3.0:test
+[[1;34mINFO[m] |  |  +- (org.springframework.boot:spring-boot:jar:3.3.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.springframework.boot:spring-boot-test:jar:3.3.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.springframework.boot:spring-boot-autoconfigure:jar:3.3.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  +- com.jayway.jsonpath:json-path:jar:2.9.0:test
+[[1;34mINFO[m] |  |  +- (net.minidev:json-smart:jar:2.5.1:test - version managed from 2.5.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 2.0.11; omitted for duplicate)
+[[1;34mINFO[m] |  +- jakarta.xml.bind:jakarta.xml.bind-api:jar:4.0.2:test
+[[1;34mINFO[m] |  |  \- jakarta.activation:jakarta.activation-api:jar:2.1.3:test
+[[1;34mINFO[m] |  +- net.minidev:json-smart:jar:2.5.1:test
+[[1;34mINFO[m] |  |  \- net.minidev:accessors-smart:jar:2.5.1:test
+[[1;34mINFO[m] |  |     \- org.ow2.asm:asm:jar:9.6:test
+[[1;34mINFO[m] |  +- org.assertj:assertj-core:jar:3.25.3:test
+[[1;34mINFO[m] |  |  \- (net.bytebuddy:byte-buddy:jar:1.14.16:test - version managed from 1.14.15; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.awaitility:awaitility:jar:4.2.1:test
+[[1;34mINFO[m] |  |  \- (org.hamcrest:hamcrest:jar:2.2:test - version managed from 2.1; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.hamcrest:hamcrest:jar:2.2:test
+[[1;34mINFO[m] |  +- (org.junit.jupiter:junit-jupiter:jar:5.10.2:test - omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.mockito:mockito-core:jar:5.11.0:test - omitted for conflict with 5.12.0)
+[[1;34mINFO[m] |  +- (org.mockito:mockito-junit-jupiter:jar:5.11.0:test - omitted for conflict with 5.12.0)
+[[1;34mINFO[m] |  +- org.skyscreamer:jsonassert:jar:1.5.1:test
+[[1;34mINFO[m] |  |  \- com.vaadin.external.google:android-json:jar:0.0.20131108.vaadin1:test
+[[1;34mINFO[m] |  +- (org.springframework:spring-core:jar:6.1.8:test - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.springframework:spring-test:jar:6.2.7:test
+[[1;34mINFO[m] |  |  \- (org.springframework:spring-core:jar:6.1.8:test - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  \- org.xmlunit:xmlunit-core:jar:2.9.1:test
+[[1;34mINFO[m] |     \- (jakarta.xml.bind:jakarta.xml.bind-api:jar:4.0.2:test - version managed from 2.3.3; omitted for duplicate)
+[[1;34mINFO[m] +- org.springframework.kafka:spring-kafka-test:jar:3.2.0:test
+[[1;34mINFO[m] |  +- (org.springframework:spring-context:jar:6.2.7:test - version managed from 6.1.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework:spring-test:jar:6.2.7:test - version managed from 6.1.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework.retry:spring-retry:jar:2.0.6:test - omitted for duplicate)
+[[1;34mINFO[m] |  +- org.apache.zookeeper:zookeeper:jar:3.8.4:test
+[[1;34mINFO[m] |  |  +- org.apache.zookeeper:zookeeper-jute:jar:3.8.4:test
+[[1;34mINFO[m] |  |  |  \- (org.apache.yetus:audience-annotations:jar:0.12.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.apache.yetus:audience-annotations:jar:0.12.0:test
+[[1;34mINFO[m] |  |  +- io.netty:netty-handler:jar:4.1.110.Final:test (version managed from 4.1.105.Final)
+[[1;34mINFO[m] |  |  |  +- io.netty:netty-common:jar:4.1.110.Final:test
+[[1;34mINFO[m] |  |  |  +- io.netty:netty-resolver:jar:4.1.110.Final:test
+[[1;34mINFO[m] |  |  |  |  \- (io.netty:netty-common:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- io.netty:netty-buffer:jar:4.1.110.Final:test
+[[1;34mINFO[m] |  |  |  |  \- (io.netty:netty-common:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- io.netty:netty-transport:jar:4.1.110.Final:test
+[[1;34mINFO[m] |  |  |  |  +- (io.netty:netty-common:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  |  +- (io.netty:netty-buffer:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  |  \- (io.netty:netty-resolver:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- io.netty:netty-transport-native-unix-common:jar:4.1.110.Final:test
+[[1;34mINFO[m] |  |  |  |  +- (io.netty:netty-common:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  |  +- (io.netty:netty-buffer:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  |  \- (io.netty:netty-transport:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- io.netty:netty-codec:jar:4.1.110.Final:test
+[[1;34mINFO[m] |  |  |     +- (io.netty:netty-common:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |     +- (io.netty:netty-buffer:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |     \- (io.netty:netty-transport:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- io.netty:netty-transport-native-epoll:jar:4.1.110.Final:test (version managed from 4.1.105.Final)
+[[1;34mINFO[m] |  |  |  +- (io.netty:netty-common:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (io.netty:netty-buffer:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (io.netty:netty-transport:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (io.netty:netty-transport-native-unix-common:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- io.netty:netty-transport-classes-epoll:jar:4.1.110.Final:test
+[[1;34mINFO[m] |  |  |     +- (io.netty:netty-common:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |     +- (io.netty:netty-buffer:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |     +- (io.netty:netty-transport:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |     \- (io.netty:netty-transport-native-unix-common:jar:4.1.110.Final:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.30; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (ch.qos.logback:logback-core:jar:1.5.6:compile - version managed from 1.2.13; scope updated from test; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (ch.qos.logback:logback-classic:jar:1.5.6:test - version managed from 1.2.13; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- commons-io:commons-io:jar:2.11.0:test
+[[1;34mINFO[m] |  +- org.apache.kafka:kafka-clients:jar:test:3.7.0:test
+[[1;34mINFO[m] |  |  +- (com.github.luben:zstd-jni:jar:1.5.5-6:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.lz4:lz4-java:jar:1.8.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.xerial.snappy:snappy-java:jar:1.1.10.5:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.apache.kafka:kafka-metadata:jar:3.7.0:test
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-server-common:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.apache.kafka:kafka-raft:jar:3.7.0:test
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-server-common:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.datatype:jackson-datatype-jdk8:jar:2.17.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- com.yammer.metrics:metrics-core:jar:2.2.0:test
+[[1;34mINFO[m] |  |     \- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.2; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.apache.kafka:kafka-server-common:jar:3.7.0:test
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.yammer.metrics:metrics-core:jar:2.2.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- net.sf.jopt-simple:jopt-simple:jar:5.0.4:test
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- org.pcollections:pcollections:jar:4.0.1:test
+[[1;34mINFO[m] |  +- org.apache.kafka:kafka-server-common:jar:test:3.7.0:test
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.yammer.metrics:metrics-core:jar:2.2.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (net.sf.jopt-simple:jopt-simple:jar:5.0.4:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.pcollections:pcollections:jar:4.0.1:test - omitted for duplicate)
+[[1;34mINFO[m] |  +- org.apache.kafka:kafka-streams-test-utils:jar:3.7.0:test
+[[1;34mINFO[m] |  |  +- org.apache.kafka:kafka-streams:jar:3.7.0:test
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- org.rocksdb:rocksdbjni:jar:7.9.2:test
+[[1;34mINFO[m] |  |  |  +- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-annotations:jar:2.17.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  +- org.apache.kafka:kafka_2.13:jar:3.7.0:test
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.scala-lang:scala-library:jar:2.13.12:test
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-server-common:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.apache.kafka:kafka-group-coordinator:jar:3.7.0:test
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-server-common:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-metadata:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (com.yammer.metrics:metrics-core:jar:2.2.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-metadata:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.apache.kafka:kafka-storage-api:jar:3.7.0:test
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-server-common:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (com.yammer.metrics:metrics-core:jar:2.2.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.apache.kafka:kafka-tools-api:jar:3.7.0:test
+[[1;34mINFO[m] |  |  |  \- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-raft:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.apache.kafka:kafka-storage:jar:3.7.0:test
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-storage-api:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-server-common:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- com.github.ben-manes.caffeine:caffeine:jar:3.1.8:test (version managed from 2.9.3)
+[[1;34mINFO[m] |  |  |  |  +- org.checkerframework:checker-qual:jar:3.37.0:test
+[[1;34mINFO[m] |  |  |  |  \- com.google.errorprone:error_prone_annotations:jar:2.21.1:test
+[[1;34mINFO[m] |  |  |  +- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (com.yammer.metrics:metrics-core:jar:2.2.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.apache.kafka:kafka-server:jar:3.7.0:test
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (org.apache.kafka:kafka-server-common:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (com.yammer.metrics:metrics-core:jar:2.2.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- net.sourceforge.argparse4j:argparse4j:jar:0.7.0:test
+[[1;34mINFO[m] |  |  +- commons-validator:commons-validator:jar:1.7:test
+[[1;34mINFO[m] |  |  |  +- commons-beanutils:commons-beanutils:jar:1.9.4:test
+[[1;34mINFO[m] |  |  |  |  +- (commons-logging:commons-logging:jar:1.2:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  |  \- (commons-collections:commons-collections:jar:3.2.2:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- commons-digester:commons-digester:jar:2.1:test
+[[1;34mINFO[m] |  |  |  +- commons-logging:commons-logging:jar:1.2:test
+[[1;34mINFO[m] |  |  |  \- commons-collections:commons-collections:jar:3.2.2:test
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- com.fasterxml.jackson.module:jackson-module-scala_2.13:jar:2.17.1:test (version managed from 2.16.0)
+[[1;34mINFO[m] |  |  |  +- (org.scala-lang:scala-library:jar:2.13.13:test - omitted for conflict with 2.13.12)
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-core:jar:2.16.1:test - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-annotations:jar:2.17.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- com.thoughtworks.paranamer:paranamer:jar:2.8:test
+[[1;34mINFO[m] |  |  +- com.fasterxml.jackson.dataformat:jackson-dataformat-csv:jar:2.17.1:test (version managed from 2.16.0)
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  +- (com.fasterxml.jackson.core:jackson-annotations:jar:2.17.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  |  \- (com.fasterxml.jackson.core:jackson-core:jar:2.16.1:test - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.datatype:jackson-datatype-jdk8:jar:2.17.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (net.sf.jopt-simple:jopt-simple:jar:5.0.4:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.bitbucket.b_c:jose4j:jar:0.9.4:test
+[[1;34mINFO[m] |  |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.yammer.metrics:metrics-core:jar:2.2.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- org.scala-lang.modules:scala-collection-compat_2.13:jar:2.10.0:test
+[[1;34mINFO[m] |  |  |  \- (org.scala-lang:scala-library:jar:2.13.10:test - omitted for conflict with 2.13.12)
+[[1;34mINFO[m] |  |  +- org.scala-lang.modules:scala-java8-compat_2.13:jar:1.0.2:test
+[[1;34mINFO[m] |  |  |  \- (org.scala-lang:scala-library:jar:2.13.6:test - omitted for conflict with 2.13.12)
+[[1;34mINFO[m] |  |  +- org.scala-lang:scala-reflect:jar:2.13.12:test
+[[1;34mINFO[m] |  |  |  \- (org.scala-lang:scala-library:jar:2.13.12:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- com.typesafe.scala-logging:scala-logging_2.13:jar:3.9.4:test
+[[1;34mINFO[m] |  |  |  +- (org.scala-lang:scala-library:jar:2.13.5:test - omitted for conflict with 2.13.12)
+[[1;34mINFO[m] |  |  |  +- (org.scala-lang:scala-reflect:jar:2.13.5:test - omitted for conflict with 2.13.12)
+[[1;34mINFO[m] |  |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.30; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- io.dropwizard.metrics:metrics-core:jar:4.1.12.1:test
+[[1;34mINFO[m] |  |  |  \- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.30; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.zookeeper:zookeeper:jar:3.8.3:test - omitted for conflict with 3.8.4)
+[[1;34mINFO[m] |  |  \- commons-cli:commons-cli:jar:1.4:test
+[[1;34mINFO[m] |  +- org.apache.kafka:kafka_2.13:jar:test:3.7.0:test
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-clients:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.scala-lang:scala-library:jar:2.13.12:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-server-common:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-group-coordinator:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-metadata:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-storage-api:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-tools-api:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-raft:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-storage:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.kafka:kafka-server:jar:3.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (net.sourceforge.argparse4j:argparse4j:jar:0.7.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (commons-validator:commons-validator:jar:1.7:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.module:jackson-module-scala_2.13:jar:2.17.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.dataformat:jackson-dataformat-csv:jar:2.17.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.fasterxml.jackson.datatype:jackson-datatype-jdk8:jar:2.17.1:test - version managed from 2.16.0; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (net.sf.jopt-simple:jopt-simple:jar:5.0.4:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.bitbucket.b_c:jose4j:jar:0.9.4:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.yammer.metrics:metrics-core:jar:2.2.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.scala-lang.modules:scala-collection-compat_2.13:jar:2.10.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.scala-lang.modules:scala-java8-compat_2.13:jar:1.0.2:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.scala-lang:scala-reflect:jar:2.13.12:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (com.typesafe.scala-logging:scala-logging_2.13:jar:3.9.4:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.slf4j:slf4j-api:jar:2.0.9:test - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (io.dropwizard.metrics:metrics-core:jar:4.1.12.1:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  +- (org.apache.zookeeper:zookeeper:jar:3.8.3:test - omitted for conflict with 3.8.4)
+[[1;34mINFO[m] |  |  \- (commons-cli:commons-cli:jar:1.4:test - omitted for duplicate)
+[[1;34mINFO[m] |  +- org.junit.jupiter:junit-jupiter-api:jar:5.10.2:test
+[[1;34mINFO[m] |  |  +- org.opentest4j:opentest4j:jar:1.3.0:test
+[[1;34mINFO[m] |  |  +- org.junit.platform:junit-platform-commons:jar:1.10.2:test
+[[1;34mINFO[m] |  |  |  \- (org.apiguardian:apiguardian-api:jar:1.1.2:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  \- org.apiguardian:apiguardian-api:jar:1.1.2:test
+[[1;34mINFO[m] |  \- org.junit.platform:junit-platform-launcher:jar:1.10.2:test
+[[1;34mINFO[m] |     +- org.junit.platform:junit-platform-engine:jar:1.10.2:test
+[[1;34mINFO[m] |     |  +- (org.opentest4j:opentest4j:jar:1.3.0:test - omitted for duplicate)
+[[1;34mINFO[m] |     |  +- (org.junit.platform:junit-platform-commons:jar:1.10.2:test - omitted for duplicate)
+[[1;34mINFO[m] |     |  \- (org.apiguardian:apiguardian-api:jar:1.1.2:test - omitted for duplicate)
+[[1;34mINFO[m] |     \- (org.apiguardian:apiguardian-api:jar:1.1.2:test - omitted for duplicate)
+[[1;34mINFO[m] +- org.junit.jupiter:junit-jupiter:jar:5.10.2:test
+[[1;34mINFO[m] |  +- (org.junit.jupiter:junit-jupiter-api:jar:5.10.2:test - omitted for duplicate)
+[[1;34mINFO[m] |  +- org.junit.jupiter:junit-jupiter-params:jar:5.10.2:test
+[[1;34mINFO[m] |  |  +- (org.junit.jupiter:junit-jupiter-api:jar:5.10.2:test - omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.apiguardian:apiguardian-api:jar:1.1.2:test - omitted for duplicate)
+[[1;34mINFO[m] |  \- org.junit.jupiter:junit-jupiter-engine:jar:5.10.2:test
+[[1;34mINFO[m] |     +- (org.junit.platform:junit-platform-engine:jar:1.10.2:test - omitted for duplicate)
+[[1;34mINFO[m] |     +- (org.junit.jupiter:junit-jupiter-api:jar:5.10.2:test - omitted for duplicate)
+[[1;34mINFO[m] |     \- (org.apiguardian:apiguardian-api:jar:1.1.2:test - omitted for duplicate)
+[[1;34mINFO[m] +- org.mockito:mockito-core:jar:5.12.0:test
+[[1;34mINFO[m] |  +- net.bytebuddy:byte-buddy:jar:1.14.16:test
+[[1;34mINFO[m] |  +- net.bytebuddy:byte-buddy-agent:jar:1.14.16:test (version managed from 1.14.15)
+[[1;34mINFO[m] |  \- org.objenesis:objenesis:jar:3.3:test
+[[1;34mINFO[m] +- org.mockito:mockito-junit-jupiter:jar:5.12.0:test
+[[1;34mINFO[m] |  +- (org.mockito:mockito-core:jar:5.12.0:test - omitted for duplicate)
+[[1;34mINFO[m] |  \- (org.junit.jupiter:junit-jupiter-api:jar:5.10.2:test - omitted for duplicate)
+[[1;34mINFO[m] +- org.apache.httpcomponents.client5:httpclient5:jar:5.3.1:compile
+[[1;34mINFO[m] |  +- (org.apache.httpcomponents.core5:httpcore5:jar:5.2.4:compile - omitted for duplicate)
+[[1;34mINFO[m] |  +- org.apache.httpcomponents.core5:httpcore5-h2:jar:5.2.4:compile
+[[1;34mINFO[m] |  |  \- (org.apache.httpcomponents.core5:httpcore5:jar:5.2.4:compile - omitted for duplicate)
+[[1;34mINFO[m] |  \- (org.slf4j:slf4j-api:jar:2.0.9:compile - version managed from 1.7.36; omitted for duplicate)
+[[1;34mINFO[m] +- org.apache.httpcomponents.core5:httpcore5:jar:5.2.4:compile
+[[1;34mINFO[m] +- org.openjfx:javafx-graphics:jar:21-ea+24:compile
+[[1;34mINFO[m] |  +- org.openjfx:javafx-graphics:jar:mac-aarch64:21-ea+24:compile
+[[1;34mINFO[m] |  |  +- (org.openjfx:javafx-graphics:jar:mac-aarch64:21-ea+24:compile - omitted for cycle)
+[[1;34mINFO[m] |  |  +- (org.openjfx:javafx-graphics:jar:mac-aarch64:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.openjfx:javafx-base:jar:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  \- org.openjfx:javafx-base:jar:21-ea+24:compile
+[[1;34mINFO[m] |     \- org.openjfx:javafx-base:jar:mac-aarch64:21-ea+24:compile
+[[1;34mINFO[m] |        +- (org.openjfx:javafx-base:jar:mac-aarch64:21-ea+24:compile - omitted for cycle)
+[[1;34mINFO[m] |        \- (org.openjfx:javafx-base:jar:mac-aarch64:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] +- org.openjfx:javafx-controls:jar:21-ea+24:compile
+[[1;34mINFO[m] |  +- org.openjfx:javafx-controls:jar:mac-aarch64:21-ea+24:compile
+[[1;34mINFO[m] |  |  +- (org.openjfx:javafx-controls:jar:mac-aarch64:21-ea+24:compile - omitted for cycle)
+[[1;34mINFO[m] |  |  +- (org.openjfx:javafx-controls:jar:mac-aarch64:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.openjfx:javafx-graphics:jar:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  \- (org.openjfx:javafx-graphics:jar:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] +- org.openjfx:javafx-fxml:jar:21-ea+24:compile
+[[1;34mINFO[m] |  +- org.openjfx:javafx-fxml:jar:mac-aarch64:21-ea+24:compile
+[[1;34mINFO[m] |  |  +- (org.openjfx:javafx-fxml:jar:mac-aarch64:21-ea+24:compile - omitted for cycle)
+[[1;34mINFO[m] |  |  +- (org.openjfx:javafx-fxml:jar:mac-aarch64:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  |  \- (org.openjfx:javafx-controls:jar:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] |  \- (org.openjfx:javafx-controls:jar:21-ea+24:compile - omitted for duplicate)
+[[1;34mINFO[m] +- org.springframework:spring-websocket:jar:6.2.7:compile
+[[1;34mINFO[m] |  +- (org.springframework:spring-context:jar:6.2.7:compile - version managed from 6.1.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  \- (org.springframework:spring-web:jar:6.2.7:compile - version managed from 6.1.8; omitted for duplicate)
+[[1;34mINFO[m] +- org.springframework:spring-messaging:jar:6.2.7:compile
+[[1;34mINFO[m] |  +- org.springframework:spring-beans:jar:6.1.8:compile
+[[1;34mINFO[m] |  |  \- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  \- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] +- com.fasterxml.jackson.core:jackson-core:jar:2.16.1:compile
+[[1;34mINFO[m] +- com.fasterxml.jackson.core:jackson-databind:jar:2.16.1:compile
+[[1;34mINFO[m] |  +- com.fasterxml.jackson.core:jackson-annotations:jar:2.17.1:compile (version managed from 2.16.1)
+[[1;34mINFO[m] |  \- (com.fasterxml.jackson.core:jackson-core:jar:2.16.1:compile - version managed from 2.17.1; omitted for duplicate)
+[[1;34mINFO[m] +- org.testfx:testfx-core:jar:4.0.17:test
+[[1;34mINFO[m] |  +- (org.hamcrest:hamcrest:jar:2.2:test - version managed from 2.1; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.assertj:assertj-core:jar:3.25.3:test - version managed from 3.13.2; omitted for duplicate)
+[[1;34mINFO[m] |  \- org.osgi:org.osgi.core:jar:6.0.0:test
+[[1;34mINFO[m] +- org.springframework:spring-web:jar:6.2.7:compile
+[[1;34mINFO[m] |  +- (org.springframework:spring-beans:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  +- (org.springframework:spring-core:jar:6.1.8:compile - version managed from 6.2.7; omitted for duplicate)
+[[1;34mINFO[m] |  \- (io.micrometer:micrometer-observation:jar:1.13.0:compile - version managed from 1.14.7; omitted for duplicate)
+[[1;34mINFO[m] +- jakarta.websocket:jakarta.websocket-api:jar:2.1.1:compile
+[[1;34mINFO[m] \- org.apache.tomcat.embed:tomcat-embed-websocket:jar:10.1.24:compile
+[[1;34mINFO[m]    \- org.apache.tomcat.embed:tomcat-embed-core:jar:10.1.24:compile
+[[1;34mINFO[m]       \- org.apache.tomcat:tomcat-annotations-api:jar:10.1.24:compile
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] [1;32mBUILD SUCCESS[m
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] Total time: 1.451 s
+[[1;34mINFO[m] Finished at: 2025-06-04T18:41:30+02:00
+[[1;34mINFO[m] Final Memory: 27M/188M
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
