@@ -20,8 +20,6 @@ import org.mockito.Captor;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,8 +33,7 @@ import static org.mockito.Mockito.lenient;
 public class PerformanceAnalysisEndpointTest {
 
     private WebSocketSession mockWebSocketSession;
-    private PerformanceAnalysisEndpoint performanceAnalysisEndpoint;
-    private ObjectMapper testObjectMapper;
+    private ObjectMapper testObjectMapper; 
 
     @Captor
     ArgumentCaptor<TextMessage> textMessageCaptor;
@@ -46,9 +43,9 @@ public class PerformanceAnalysisEndpointTest {
         testObjectMapper = new ObjectMapper();
         testObjectMapper.registerModule(new JavaTimeModule());
         testObjectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-        performanceAnalysisEndpoint = new PerformanceAnalysisEndpoint();
-
+        
         mockWebSocketSession = Mockito.mock(WebSocketSession.class);
+        lenient().when(mockWebSocketSession.isOpen()).thenReturn(true);
     }
 
     private List<Trade> loadTradesFromFile(String jsonFileName) throws IOException {
@@ -60,91 +57,171 @@ public class PerformanceAnalysisEndpointTest {
         return wrapper.getTrades();
     }
 
-    private void deserializeAndAssertAverages(
-            List<TextMessage> capturedWebSocketMessages,
-            List<Trade> inputTrades) throws IOException {
-
+    private List<TradeSnapshot> deserializeCapturedMessages(List<TextMessage> messages) throws IOException {
+        List<TradeSnapshot> snapshots = new ArrayList<>();
+        if (messages == null) return snapshots;
+        for (TextMessage message : messages) {
+            snapshots.add(this.testObjectMapper.readValue(message.getPayload(), TradeSnapshot.class));
+        }
+        return snapshots;
     }
-
+    
     @Test
     void testAverageCalculations_from_kafkaTestRecordsFile() throws IOException {
-        // Configure for 1 buy (on 3rd consecutive up) and 1 sell (on 2nd consecutive down)
-        // All other strategy flags are false to isolate the up/down tick counting logic.
         TradeConfig testConfig = new TradeConfig("xyz", "3", "2", false, false, false, false);
         BasicTrader basicTrader = new BasicTrader(testConfig);
         AtomicBoolean isRunning = new AtomicBoolean(true);
+        PerformanceAnalysisEndpoint endpoint = new PerformanceAnalysisEndpoint();
 
-        // Made this stubbing lenient because isRunning=false will cause the method to return early,
-        // potentially before isOpen() is checked, due to short-circuit evaluation.
-        lenient().when(mockWebSocketSession.isOpen()).thenReturn(true);
-//        when(mockWebSocketSession.getId()).thenReturn("test-session-avg-calc");
+        lenient().when(mockWebSocketSession.getId()).thenReturn("test-session-avg-calc");
 
         List<Trade> inputTrades = loadTradesFromFile("/kafka-test-records.json");
         assertFalse(inputTrades.isEmpty(), "Should load trades from kafka-test-records.json");
+        System.out.println("Verified: Trades loaded successfully from kafka-test-records.json.");
         assertEquals(6, inputTrades.size(), "Should have loaded 6 trades from kafka-test-records.json");
+        System.out.println("Verified: Exactly 6 trades loaded.");
 
         for (Trade trade : inputTrades) {
-            performanceAnalysisEndpoint.processKafkaTradeForPerformanceAnalysis(
-                    trade, mockWebSocketSession, isRunning, basicTrader, testObjectMapper
-            );
+             endpoint.processKafkaTradeForPerformanceAnalysis(
+                 trade, 
+                 mockWebSocketSession,
+                 isRunning,
+                 basicTrader,
+                 this.testObjectMapper
+             );
         }
         
-        // Expect exactly 2 messages: 1 buy and 1 sell based on the TradeConfig and upcoming JSON data
         verify(mockWebSocketSession, times(2)).sendMessage(textMessageCaptor.capture());
-
+        System.out.println("Verified: sendMessage called exactly 2 times.");
         List<TextMessage> actualSentMessages = textMessageCaptor.getAllValues();
+        List<TradeSnapshot> capturedSnapshots = deserializeCapturedMessages(actualSentMessages);
+
+        assertEquals(2, capturedSnapshots.size(), "Expected 2 snapshots (1 buy, 1 sell) to be captured.");
+        System.out.println("Verified: Captured exactly 2 snapshot messages.");
         
-        List<TradeSnapshot> capturedSnapshots = new ArrayList<>();
-
-        if (actualSentMessages.isEmpty()) {
-            fail("No WebSocket messages were captured by ArgumentCaptor (and messages were expected for this assertion path).");
-        }
-
-        for (TextMessage textMessage : actualSentMessages) {
-            TradeSnapshot capturedSnapshot = this.testObjectMapper.readValue(textMessage.getPayload(), TradeSnapshot.class);
-            capturedSnapshots.add(capturedSnapshot);
-        }
-
-        assertEquals(2, capturedSnapshots.size());
-        // first pretendTrade should be triggered by the record with TID 4 (at TICK_UP3)
         TradeSnapshot pretendBuy  = capturedSnapshots.get(0);
         TradeSnapshot pretendSell = capturedSnapshots.get(1);
-        assertEquals(4, pretendBuy.getTradeId());
-        assertEquals(6, pretendSell.getTradeId());
+        
+        // --- Assertions for first pretend trade (BUY) ---
+        assertEquals(4, pretendBuy.getTradeId(), "Pretend BUY Trade ID mismatch.");
+        System.out.println("BUY @ TID 4: Verified Trade ID.");
+        assertNotNull(pretendBuy.getPretendTrade(), "PretendTrade object should not be null for BUY operation.");
+        System.out.println("BUY @ TID 4: Verified PretendTrade object exists.");
+        assertEquals("PRETEND buy", pretendBuy.getPretendTrade().getMakerSide(), "PretendTrade makerSide for BUY operation is incorrect.");
+        System.out.println("BUY @ TID 4: Verified makerSide is 'PRETEND buy'.");
+        assertEquals(10560, pretendBuy.getAvgAskPrice(), "AvgAskPrice for pretend BUY (TID 4) is wrong.");
+        System.out.println("BUY @ TID 4: Verified average ask price.");
+        assertEquals(0.024, pretendBuy.getAvgAskAmount(), "AvgAskAmount for pretend BUY (TID 4) is wrong.");
+        System.out.println("BUY @ TID 4: Verified average ask amount.");
+        assertEquals(10490, pretendBuy.getAvgBidPrice(), "AvgBidPrice for pretend BUY (TID 4) is wrong.");
+        System.out.println("BUY @ TID 4: Verified average bid price.");
+        assertEquals(0.024, pretendBuy.getAvgBidAmount(), "AvgBidAmount for pretend BUY (TID 4) is wrong.");
+        System.out.println("BUY @ TID 4: Verified average bid amount.");
+        // priceCloserToBestAsk = distanceToAsk - distanceToBid; negative value means closer to bid (buy signal)
+        assertTrue(pretendBuy.getPriceCloserToBestAsk() < 0, "getPriceCloserToBestAsk for BUY should be negative.");
+        System.out.println("BUY @ TID 4: Verified priceCloserToBestAsk is negative. Value = " + pretendBuy.getPriceCloserToBestAsk());
 
-        assertNotNull(pretendBuy.getPretendTrade(), "Pretend Trade not found for buy");
-        assertEquals("PRETEND buy", pretendBuy.getPretendTrade().getMakerSide(), "Pretend Trade type is not 'buy'");
-        assertEquals(10560, pretendBuy.getAvgAskPrice(), "getAvgAskPrice for TID " + pretendBuy.getTradeId() + " is wrong.");
-        System.out.println("* pretendBuy AvgAskPrice correct");
-        assertEquals(0.024, pretendBuy.getAvgAskAmount(), "getAvgAskAmount for TID " + pretendBuy.getTradeId() + " is wrong.");
-        System.out.println("* pretendBuy getAvgAskAmount correct");
-        assertEquals(10490, pretendBuy.getAvgBidPrice(), "getAvgBidPrice for TID " + pretendBuy.getTradeId() + " is wrong.");
-        System.out.println("* pretendSell getAvgBidPrice correct");
-        assertEquals(0.024, pretendBuy.getAvgBidAmount(), "getAvgBidAmount for TID " + pretendBuy.getTradeId() + " is wrong.");
-        System.out.println("* pretendSell getAvgBidAmount correct");
-        assertEquals(10530, pretendBuy.getTradePrice(), "getTradePrice for TID " + pretendBuy.getTradeId() + " is wrong.");
-        System.out.println("* pretendBuy getTradePrice correct");
-        // priceCloserToBestAsk = distanceToAsk - distanceToBid; so if positive, closer to ask
-        assertTrue(pretendBuy.getPriceCloserToBestAsk() < 0, "getPriceCloserToBestAsk is not negative: ask 540 trade 530 bid 510");
-        System.out.println("* pretendSell getPriceCloserToBestAsk = " + pretendBuy.getPriceCloserToBestAsk());
-
-        assertNotNull(pretendSell.getPretendTrade(), "Pretend Trade not found for sell");
-        assertEquals("PRETEND sell", pretendSell.getPretendTrade().getMakerSide(), "Pretend Trade type is not 'buy'");
-        assertEquals(10540, pretendSell.getAvgAskPrice(), "getAvgAskPrice for TID " + pretendSell.getTradeId() + " is wrong.");
-        System.out.println("* pretendSell getAvgAskPrice correct");
-        assertEquals(0.03, pretendSell.getAvgAskAmount(), "getAvgAskAmount for TID " + pretendSell.getTradeId() + " is wrong.");
-        System.out.println("* pretendSell getAvgAskAmount correct");
-        assertEquals(10470, pretendSell.getAvgBidPrice(), "getAvgBidPrice for TID " + pretendSell.getTradeId() + " is wrong.");
-        System.out.println("* pretendSell getAvgBidPrice correct");
-        assertEquals(0.03, pretendSell.getAvgBidAmount(), "getAvgBidAmount for TID " + pretendSell.getTradeId() + " is wrong.");
-        System.out.println("* pretendSell getTradePrice correct");
-        assertEquals(10500, pretendSell.getTradePrice(), "getTradePrice for TID " + pretendSell.getTradeId() + " is wrong.");
-        System.out.println("* pretendSell getTradePrice correct");
-        // priceCloserToBestAsk = distanceToAsk - distanceToBid; so if positive, closer to ask
-        assertTrue(pretendSell.getPriceCloserToBestAsk() > 0, "getPriceCloserToBestAsk is not positive: ask 520 trade 500 bid 490");
-        System.out.println("* pretendSell getPriceCloserToBestAsk = " + pretendSell.getPriceCloserToBestAsk());
+        // --- Assertions for second pretend trade (SELL) ---
+        assertEquals(6, pretendSell.getTradeId(), "Pretend SELL Trade ID mismatch.");
+        System.out.println("SELL @ TID 6: Verified Trade ID.");
+        assertNotNull(pretendSell.getPretendTrade(), "PretendTrade object should not be null for SELL operation.");
+        System.out.println("SELL @ TID 6: Verified PretendTrade object exists.");
+        assertEquals("PRETEND sell", pretendSell.getPretendTrade().getMakerSide(), "PretendTrade makerSide for SELL operation is incorrect.");
+        System.out.println("SELL @ TID 6: Verified makerSide is 'PRETEND sell'.");
+        assertEquals(10540, pretendSell.getAvgAskPrice(), "AvgAskPrice for pretend SELL (TID 6) is wrong.");
+        System.out.println("SELL @ TID 6: Verified average ask price.");
+        assertEquals(0.03, pretendSell.getAvgAskAmount(), "AvgAskAmount for pretend SELL (TID 6) is wrong.");
+        System.out.println("SELL @ TID 6: Verified average ask amount.");
+        assertEquals(10470, pretendSell.getAvgBidPrice(), "AvgBidPrice for pretend SELL (TID 6) is wrong.");
+        System.out.println("SELL @ TID 6: Verified average bid price.");
+        assertEquals(0.03, pretendSell.getAvgBidAmount(), "AvgBidAmount for pretend SELL (TID 6) is wrong.");
+        System.out.println("SELL @ TID 6: Verified average bid amount.");
+        // priceCloserToBestAsk = distanceToAsk - distanceToBid; positive value means closer to ask (sell signal)
+        assertTrue(pretendSell.getPriceCloserToBestAsk() > 0, "getPriceCloserToBestAsk for SELL should be positive.");
+        System.out.println("SELL @ TID 6: Verified priceCloserToBestAsk is positive. Value = " + pretendSell.getPriceCloserToBestAsk());
     }
 
+    @Test
+    void testPretendTradesWithExtendedMovingAverageData() throws IOException {
+        TradeConfig testConfig = new TradeConfig("xyz-ma-test", "3", "2", false, false, false, false);
+        BasicTrader basicTrader = new BasicTrader(testConfig);
+        AtomicBoolean isRunning = new AtomicBoolean(true);
+        PerformanceAnalysisEndpoint endpoint = new PerformanceAnalysisEndpoint();
+
+        lenient().when(mockWebSocketSession.getId()).thenReturn("test-session-ma-calc");
+
+        List<Trade> inputTrades = loadTradesFromFile("/kafka-test-records-moving-averages.json");
+        assertEquals(25, inputTrades.size(), "Should load 25 trades from the extended file.");
+        System.out.println("Verified: Exactly 25 trades loaded from extended data file.");
+
+        for (Trade trade : inputTrades) {
+            endpoint.processKafkaTradeForPerformanceAnalysis(
+                trade,
+                mockWebSocketSession,
+                isRunning,
+                basicTrader,
+                this.testObjectMapper
+            );
+        }
+
+        int expectedPretendTradeMessages = 6; 
+        verify(mockWebSocketSession, times(expectedPretendTradeMessages)).sendMessage(textMessageCaptor.capture());
+        System.out.println("Verified: sendMessage called exactly 6 times for pretend trades.");
+        
+        List<TradeSnapshot> capturedSnapshots = deserializeCapturedMessages(textMessageCaptor.getAllValues());
+        assertEquals(expectedPretendTradeMessages, capturedSnapshots.size(), "Incorrect number of TradeSnapshot messages captured for pretend trades.");
+        System.out.println("Verified: Captured exactly 6 snapshot messages for pretend trades.");
+
+        // --- Assertions for each pretend trade from the extended data file ---
+
+        TradeSnapshot buy1 = capturedSnapshots.get(0);
+        assertEquals(4, buy1.getTradeId(), "Pretend trade 1 (BUY) should have TID 4.");
+        System.out.println("Extended Test - BUY @ TID 4: Verified Trade ID.");
+        assertNotNull(buy1.getPretendTrade(), "Pretend trade 1 (BUY @ TID 4) object missing.");
+        System.out.println("Extended Test - BUY @ TID 4: Verified PretendTrade object exists.");
+        assertEquals("PRETEND buy", buy1.getPretendTrade().getMakerSide(), "Pretend trade 1 (BUY @ TID 4) makerSide incorrect.");
+        System.out.println("Extended Test - BUY @ TID 4: Verified makerSide is 'PRETEND buy'.");
+
+        TradeSnapshot sell1 = capturedSnapshots.get(1);
+        assertEquals(6, sell1.getTradeId(), "Pretend trade 2 (SELL) should have TID 6.");
+        System.out.println("Extended Test - SELL @ TID 6: Verified Trade ID.");
+        assertNotNull(sell1.getPretendTrade(), "Pretend trade 2 (SELL @ TID 6) object missing.");
+        System.out.println("Extended Test - SELL @ TID 6: Verified PretendTrade object exists.");
+        assertEquals("PRETEND sell", sell1.getPretendTrade().getMakerSide(), "Pretend trade 2 (SELL @ TID 6) makerSide incorrect.");
+        System.out.println("Extended Test - SELL @ TID 6: Verified makerSide is 'PRETEND sell'.");
+
+        TradeSnapshot buy2 = capturedSnapshots.get(2);
+        assertEquals(12, buy2.getTradeId(), "Pretend trade 3 (BUY) should have TID 12.");
+        System.out.println("Extended Test - BUY @ TID 12: Verified Trade ID.");
+        assertNotNull(buy2.getPretendTrade(), "Pretend trade 3 (BUY @ TID 12) object missing.");
+        System.out.println("Extended Test - BUY @ TID 12: Verified PretendTrade object exists.");
+        assertEquals("PRETEND buy", buy2.getPretendTrade().getMakerSide(), "Pretend trade 3 (BUY @ TID 12) makerSide incorrect.");
+        System.out.println("Extended Test - BUY @ TID 12: Verified makerSide is 'PRETEND buy'.");
+
+        TradeSnapshot sell2 = capturedSnapshots.get(3);
+        assertEquals(16, sell2.getTradeId(), "Pretend trade 4 (SELL) should have TID 16.");
+        System.out.println("Extended Test - SELL @ TID 16: Verified Trade ID.");
+        assertNotNull(sell2.getPretendTrade(), "Pretend trade 4 (SELL @ TID 16) object missing.");
+        System.out.println("Extended Test - SELL @ TID 16: Verified PretendTrade object exists.");
+        assertEquals("PRETEND sell", sell2.getPretendTrade().getMakerSide(), "Pretend trade 4 (SELL @ TID 16) makerSide incorrect.");
+        System.out.println("Extended Test - SELL @ TID 16: Verified makerSide is 'PRETEND sell'.");
+        
+        TradeSnapshot buy3 = capturedSnapshots.get(4);
+        assertEquals(21, buy3.getTradeId(), "Pretend trade 5 (BUY) should have TID 21.");
+        System.out.println("Extended Test - BUY @ TID 21: Verified Trade ID.");
+        assertNotNull(buy3.getPretendTrade(), "Pretend trade 5 (BUY @ TID 21) object missing.");
+        System.out.println("Extended Test - BUY @ TID 21: Verified PretendTrade object exists.");
+        assertEquals("PRETEND buy", buy3.getPretendTrade().getMakerSide(), "Pretend trade 5 (BUY @ TID 21) makerSide incorrect.");
+        System.out.println("Extended Test - BUY @ TID 21: Verified makerSide is 'PRETEND buy'.");
+
+        TradeSnapshot sell3 = capturedSnapshots.get(5);
+        assertEquals(24, sell3.getTradeId(), "Pretend trade 6 (SELL) should have TID 24.");
+        System.out.println("Extended Test - SELL @ TID 24: Verified Trade ID.");
+        assertNotNull(sell3.getPretendTrade(), "Pretend trade 6 (SELL @ TID 24) object missing.");
+        System.out.println("Extended Test - SELL @ TID 24: Verified PretendTrade object exists.");
+        assertEquals("PRETEND sell", sell3.getPretendTrade().getMakerSide(), "Pretend trade 6 (SELL @ TID 24) makerSide incorrect.");
+        System.out.println("Extended Test - SELL @ TID 24: Verified makerSide is 'PRETEND sell'.");
+    }
 }
 
 class KafkaTestRecord {

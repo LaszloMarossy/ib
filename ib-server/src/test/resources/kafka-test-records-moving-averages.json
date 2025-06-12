@@ -1,0 +1,153 @@
+{
+  "records": [
+    {
+      "value": {
+        "obp": {
+          "asks": [{"p": 10510, "a": 0.02},{"p": 10520, "a": 0.02},{"p": 10530, "a": 0.02},{"p": 10540, "a": 0.02},{"p": 10550, "a": 0.02}],
+          "bids": [{"p": 10480, "a": 0.02},{"p": 10470, "a": 0.02},{"p": 10460, "a": 0.02},{"p": 10450, "a": 0.02},{"p": 10440, "a": 0.02}],
+          "updated_at": 1710000000000,"sequence": 1
+        },"createdAt": "2024-03-10T12:00:00.000Z","amount": 0.02,"makerSide": "buy","price": 10500,"tid": 1,"tick": "TICK_ZERO","nthStatus": "TICK_DOWN3"
+      }
+    },
+    {
+      "value": {
+        "obp": {
+          "asks": [{"p": 10520, "a": 0.03},{"p": 10530, "a": 0.01},{"p": 10540, "a": 0.02},{"p": 10550, "a": 0.04},{"p": 10560, "a": 0.02}],
+          "bids": [{"p": 10490, "a": 0.02},{"p": 10480, "a": 0.03},{"p": 10470, "a": 0.01},{"p": 10460, "a": 0.02},{"p": 10450, "a": 0.03}],
+          "updated_at": 1710000001000,"sequence": 2
+        },"createdAt": "2024-03-10T12:00:01.000Z","amount": 0.03,"makerSide": "sell","price": 10510,"tid": 2,"tick": "TICK_UP","nthStatus": "TICK_UP1"
+      }
+    },
+    {
+      "value": {
+        "obp": {
+          "asks": [{"p": 10530, "a": 0.02},{"p": 10540, "a": 0.02},{"p": 10550, "a": 0.01},{"p": 10560, "a": 0.03},{"p": 10570, "a": 0.02}],
+          "bids": [{"p": 10500, "a": 0.01},{"p": 10490, "a": 0.02},{"p": 10480, "a": 0.03},{"p": 10470, "a": 0.02},{"p": 10460, "a": 0.01}],
+          "updated_at": 1710000002000,"sequence": 3
+        },"createdAt": "2024-03-10T12:00:02.000Z","amount": 0.015,"makerSide": "buy","price": 10520,"tid": 3,"tick": "TICK_UP","nthStatus": "TICK_UP2"
+      }
+    },
+    {
+      "value": {
+        "obp": {
+          "asks": [{"p": 10540, "a": 0.04},{"p": 10550, "a": 0.03},{"p": 10560, "a": 0.02},{"p": 10570, "a": 0.01},{"p": 10580, "a": 0.02}],
+          "bids": [{"p": 10510, "a": 0.02},{"p": 10500, "a": 0.01},{"p": 10490, "a": 0.03},{"p": 10480, "a": 0.02},{"p": 10470, "a": 0.04}],
+          "updated_at": 1710000003000,"sequence": 4
+        },"createdAt": "2024-03-10T12:00:03.000Z","amount": 0.025,"makerSide": "sell","price": 10530,"tid": 4,"tick": "TICK_UP","nthStatus": "TICK_UP3"
+      }
+    },
+    {
+      "value": {
+        "obp": {
+          "asks": [{"p": 10530, "a": 0.01},{"p": 10540, "a": 0.02},{"p": 10550, "a": 0.03},{"p": 10560, "a": 0.01},{"p": 10570, "a": 0.02}],
+          "bids": [{"p": 10500, "a": 0.03},{"p": 10490, "a": 0.02},{"p": 10480, "a": 0.01},{"p": 10470, "a": 0.02},{"p": 10460, "a": 0.03}],
+          "updated_at": 1710000004000,"sequence": 5
+        },"createdAt": "2024-03-10T12:00:04.000Z","amount": 0.01,"makerSide": "buy","price": 10520,"tid": 5,"tick": "TICK_DOWN","nthStatus": "TICK_DOWN1"
+      }
+    },
+    {
+      "value": {
+        "obp": {
+          "asks": [{"p": 10520, "a": 0.05},{"p": 10530, "a": 0.04},{"p": 10540, "a": 0.03},{"p": 10550, "a": 0.02},{"p": 10560, "a": 0.01}],
+          "bids": [{"p": 10490, "a": 0.01},{"p": 10480, "a": 0.02},{"p": 10470, "a": 0.03},{"p": 10460, "a": 0.04},{"p": 10450, "a": 0.05}],
+          "updated_at": 1710000005000,"sequence": 6
+        },"createdAt": "2024-03-10T12:00:05.000Z","amount": 0.035,"makerSide": "sell","price": 10500,"tid": 6,"tick": "TICK_DOWN","nthStatus": "TICK_DOWN2"
+      }
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10510, "a": 0.01}],"bids": [{"p": 10490, "a": 0.01}],"updated_at": 1710000006000,"sequence": 7},
+        "createdAt": "2024-03-10T12:00:06.000Z","amount": 0.01,"makerSide": "buy","price": 10500,"tid": 7,"tick": "TICK_ZERO","nthStatus": "TICK_DOWN2"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10510, "a": 0.01}],"bids": [{"p": 10490, "a": 0.01}],"updated_at": 1710000007000,"sequence": 8},
+        "createdAt": "2024-03-10T12:00:07.000Z","amount": 0.01,"makerSide": "buy","price": 10500,"tid": 8,"tick": "TICK_ZERO","nthStatus": "TICK_DOWN2"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10510, "a": 0.01}],"bids": [{"p": 10490, "a": 0.01}],"updated_at": 1710000008000,"sequence": 9},
+        "createdAt": "2024-03-10T12:00:08.000Z","amount": 0.01,"makerSide": "buy","price": 10500,"tid": 9,"tick": "TICK_ZERO","nthStatus": "TICK_DOWN2"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10520, "a": 0.01}],"bids": [{"p": 10500, "a": 0.01}],"updated_at": 1710000009000,"sequence": 10},
+        "createdAt": "2024-03-10T12:00:09.000Z","amount": 0.01,"makerSide": "buy","price": 10510,"tid": 10,"tick": "TICK_UP","nthStatus": "TICK_UP1"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10530, "a": 0.01}],"bids": [{"p": 10510, "a": 0.01}],"updated_at": 1710000010000,"sequence": 11},
+        "createdAt": "2024-03-10T12:00:10.000Z","amount": 0.01,"makerSide": "buy","price": 10520,"tid": 11,"tick": "TICK_UP","nthStatus": "TICK_UP2"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10540, "a": 0.01}],"bids": [{"p": 10520, "a": 0.01}],"updated_at": 1710000011000,"sequence": 12},
+        "createdAt": "2024-03-10T12:00:11.000Z","amount": 0.01,"makerSide": "buy","price": 10530,"tid": 12,"tick": "TICK_UP","nthStatus": "TICK_UP3"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10540, "a": 0.01}],"bids": [{"p": 10520, "a": 0.01}],"updated_at": 1710000012000,"sequence": 13},
+        "createdAt": "2024-03-10T12:00:12.000Z","amount": 0.01,"makerSide": "buy","price": 10530,"tid": 13,"tick": "TICK_ZERO","nthStatus": "TICK_UP3"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10540, "a": 0.01}],"bids": [{"p": 10520, "a": 0.01}],"updated_at": 1710000013000,"sequence": 14},
+        "createdAt": "2024-03-10T12:00:13.000Z","amount": 0.01,"makerSide": "buy","price": 10530,"tid": 14,"tick": "TICK_ZERO","nthStatus": "TICK_UP3"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10530, "a": 0.01}],"bids": [{"p": 10510, "a": 0.01}],"updated_at": 1710000014000,"sequence": 15},
+        "createdAt": "2024-03-10T12:00:14.000Z","amount": 0.01,"makerSide": "buy","price": 10520,"tid": 15,"tick": "TICK_DOWN","nthStatus": "TICK_DOWN1"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10520, "a": 0.01}],"bids": [{"p": 10500, "a": 0.01}],"updated_at": 1710000015000,"sequence": 16},
+        "createdAt": "2024-03-10T12:00:15.000Z","amount": 0.01,"makerSide": "buy","price": 10510,"tid": 16,"tick": "TICK_DOWN","nthStatus": "TICK_DOWN2"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10520, "a": 0.01}],"bids": [{"p": 10500, "a": 0.01}],"updated_at": 1710000016000,"sequence": 17},
+        "createdAt": "2024-03-10T12:00:16.000Z","amount": 0.01,"makerSide": "buy","price": 10510,"tid": 17,"tick": "TICK_ZERO","nthStatus": "TICK_DOWN2"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10520, "a": 0.01}],"bids": [{"p": 10500, "a": 0.01}],"updated_at": 1710000017000,"sequence": 18},
+        "createdAt": "2024-03-10T12:00:17.000Z","amount": 0.01,"makerSide": "buy","price": 10510,"tid": 18,"tick": "TICK_ZERO","nthStatus": "TICK_DOWN2"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10530, "a": 0.01}],"bids": [{"p": 10510, "a": 0.01}],"updated_at": 1710000018000,"sequence": 19},
+        "createdAt": "2024-03-10T12:00:18.000Z","amount": 0.01,"makerSide": "buy","price": 10520,"tid": 19,"tick": "TICK_UP","nthStatus": "TICK_UP1"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10540, "a": 0.01}],"bids": [{"p": 10520, "a": 0.01}],"updated_at": 1710000019000,"sequence": 20},
+        "createdAt": "2024-03-10T12:00:19.000Z","amount": 0.01,"makerSide": "buy","price": 10530,"tid": 20,"tick": "TICK_UP","nthStatus": "TICK_UP2"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10550, "a": 0.01}],"bids": [{"p": 10530, "a": 0.01}],"updated_at": 1710000020000,"sequence": 21},
+        "createdAt": "2024-03-10T12:00:20.000Z","amount": 0.01,"makerSide": "buy","price": 10540,"tid": 21,"tick": "TICK_UP","nthStatus": "TICK_UP3"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10550, "a": 0.01}],"bids": [{"p": 10530, "a": 0.01}],"updated_at": 1710000021000,"sequence": 22},
+        "createdAt": "2024-03-10T12:00:21.000Z","amount": 0.01,"makerSide": "buy","price": 10540,"tid": 22,"tick": "TICK_ZERO","nthStatus": "TICK_UP3"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10540, "a": 0.01}],"bids": [{"p": 10520, "a": 0.01}],"updated_at": 1710000022000,"sequence": 23},
+        "createdAt": "2024-03-10T12:00:22.000Z","amount": 0.01,"makerSide": "buy","price": 10530,"tid": 23,"tick": "TICK_DOWN","nthStatus": "TICK_DOWN1"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10530, "a": 0.01}],"bids": [{"p": 10510, "a": 0.01}],"updated_at": 1710000023000,"sequence": 24},
+        "createdAt": "2024-03-10T12:00:23.000Z","amount": 0.01,"makerSide": "buy","price": 10520,"tid": 24,"tick": "TICK_DOWN","nthStatus": "TICK_DOWN2"}
+    },
+    {
+      "value": {
+        "obp": {"asks": [{"p": 10530, "a": 0.01}],"bids": [{"p": 10510, "a": 0.01}],"updated_at": 1710000024000,"sequence": 25},
+        "createdAt": "2024-03-10T12:00:24.000Z","amount": 0.01,"makerSide": "buy","price": 10520,"tid": 25,"tick": "TICK_ZERO","nthStatus": "TICK_DOWN2"}
+    }
+  ]
+} 

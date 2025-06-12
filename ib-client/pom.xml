@@ -19,79 +19,52 @@
         <dependency>
             <groupId>com.ibbe</groupId>
             <artifactId>ib-common</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
         </dependency>
         
-        <!-- JavaFX Dependencies -->
+        <!-- JavaFX Dependencies (versions managed by parent) -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-graphics</artifactId>
-            <version>${javafx.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
-            <version>${javafx.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
-            <version>${javafx.version}</version>
         </dependency>
         
-        <!-- WebSocket client -->
+        <!-- Spring WebSocket client -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-websocket</artifactId>
-            <version>6.1.5</version>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-messaging</artifactId>
-            <version>6.1.5</version>
         </dependency>
         
-        <!-- Spring Boot Context for ApplicationReadyEvent -->
+        <!-- Spring Boot for ApplicationReadyEvent, etc. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-            <version>3.5.0</version>
+            <artifactId>spring-boot-starter</artifactId>
         </dependency>
         
         <!-- HTTP client -->
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
-            <version>5.2.1</version>
         </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5-fluent</artifactId>
-            <version>5.2.1</version>
         </dependency>
         
-        <!-- Jackson for JSON serialization -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-            <version>2.16.1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.16.1</version>
-        </dependency>
-        
-        <!-- Kafka dependencies -->
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-clients</artifactId>
-            <version>3.6.1</version>
-        </dependency>
+        <!-- Kafka -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
-            <version>3.2.0</version>
         </dependency>
     </dependencies>
     
@@ -100,181 +73,14 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
             </plugin>
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>default-cli</id>
-                        <configuration>
-                            <mainClass>com.ibbe.fx.TradingWindow</mainClass>
-                            <launcher>trading-app</launcher>
-                            <jlinkZipName>trading-app</jlinkZipName>
-                            <jlinkImageName>trading-app</jlinkImageName>
-                            <noManPages>true</noManPages>
-                            <stripDebug>true</stripDebug>
-                            <noHeaderFiles>true</noHeaderFiles>
-                            <javaVersion>${java.version}</javaVersion>
-                <compilerArguments>
-                    <Xlint:none/>
-                </compilerArguments>                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>chart-window</id>
-                        <configuration>
-                            <mainClass>com.ibbe.fx.ChartWindow</mainClass>
-                            <launcher>chart-app</launcher>
-                            <jlinkZipName>chart-app</jlinkZipName>
-                            <jlinkImageName>chart-app</jlinkImageName>
-                            <noManPages>true</noManPages>
-                            <stripDebug>true</stripDebug>
-                            <noHeaderFiles>true</noHeaderFiles>
-                            <javaVersion>${java.version}</javaVersion>
-                <compilerArguments>
-                    <Xlint:none/>
-                </compilerArguments>                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>performance-window</id>
-                        <configuration>
-                            <mainClass>com.ibbe.fx.PerformanceWindow</mainClass>
-                            <launcher>performance-app</launcher>
-                            <jlinkZipName>performance-app</jlinkZipName>
-                            <jlinkImageName>performance-app</jlinkImageName>
-                            <noManPages>true</noManPages>
-                            <stripDebug>true</stripDebug>
-                            <noHeaderFiles>true</noHeaderFiles>
-                            <javaVersion>${java.version}</javaVersion>
-                <compilerArguments>
-                    <Xlint:none/>
-                </compilerArguments>                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>quick-replay-window</id>
-                        <configuration>
-                            <mainClass>com.ibbe.fx.QuickReplayWindow</mainClass>
-                            <launcher>quick-replay-app</launcher>
-                            <jlinkZipName>quick-replay-app</jlinkZipName>
-                            <jlinkImageName>quick-replay-app</jlinkImageName>
-                            <noManPages>true</noManPages>
-                            <stripDebug>true</stripDebug>
-                            <noHeaderFiles>true</noHeaderFiles>
-                            <javaVersion>${java.version}</javaVersion>
-                <compilerArguments>
-                    <Xlint:none/>
-                </compilerArguments>                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>trading-window</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                        <configuration>
-                            <archive>
-                                <manifest>
-                                    <addClasspath>true</addClasspath>
-                                    <mainClass>com.ibbe.fx.TradingWindow</mainClass>
-                                </manifest>
-                            </archive>
-                            <descriptorRefs>
-                                <descriptorRef>jar-with-dependencies</descriptorRef>
-                            </descriptorRefs>
-                            <finalName>ibbe-trading</finalName>
-                <compilerArguments>
-                    <Xlint:none/>
-                </compilerArguments>                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>chart-window</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                        <configuration>
-                            <archive>
-                                <manifest>
-                                    <addClasspath>true</addClasspath>
-                                    <mainClass>com.ibbe.fx.ChartWindow</mainClass>
-                                </manifest>
-                            </archive>
-                            <descriptorRefs>
-                                <descriptorRef>jar-with-dependencies</descriptorRef>
-                            </descriptorRefs>
-                            <finalName>ibbe-chart</finalName>
-                <compilerArguments>
-                    <Xlint:none/>
-                </compilerArguments>                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>performance-window</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                        <configuration>
-                            <archive>
-                                <manifest>
-                                    <mainClass>com.ibbe.fx.PerformanceWindow</mainClass>
-                                </manifest>
-                                <manifestEntries>
-                                    <Multi-Release>true</Multi-Release>
-                                </manifestEntries>
-                            </archive>
-                            <descriptorRefs>
-                                <descriptorRef>jar-with-dependencies</descriptorRef>
-                            </descriptorRefs>
-                            <finalName>ibbe-performance</finalName>
-                            <appendAssemblyId>true</appendAssemblyId>
-                            <jvmArgs>
-                                <jvmArg>-Xmx1024m</jvmArg>
-                                <jvmArg>-XX:+UseG1GC</jvmArg>
-                                <jvmArg>-XX:MaxGCPauseMillis=200</jvmArg>
-                                <jvmArg>-XX:+UseStringDeduplication</jvmArg>
-                            </jvmArgs>
-                <compilerArguments>
-                    <Xlint:none/>
-                </compilerArguments>                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>quick-replay-window</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                        <configuration>
-                            <archive>
-                                <manifest>
-                                    <mainClass>com.ibbe.fx.QuickReplayWindow</mainClass>
-                                </manifest>
-                                <manifestEntries>
-                                    <Multi-Release>true</Multi-Release>
-                                </manifestEntries>
-                            </archive>
-                            <descriptorRefs>
-                                <descriptorRef>jar-with-dependencies</descriptorRef>
-                            </descriptorRefs>
-                            <finalName>ibbe-quick-replay</finalName>
-                            <appendAssemblyId>true</appendAssemblyId>
-                            <jvmArgs>
-                                <jvmArg>-Xmx1024m</jvmArg>
-                                <jvmArg>-XX:+UseG1GC</jvmArg>
-                                <jvmArg>-XX:MaxGCPauseMillis=200</jvmArg>
-                                <jvmArg>-XX:+UseStringDeduplication</jvmArg>
-                            </jvmArgs>
-                <compilerArguments>
-                    <Xlint:none/>
-                </compilerArguments>                        </configuration>
-                    </execution>
-                </executions>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>com.ibbe.fx.TradingWindow</mainClass>
+                </configuration>
             </plugin>
         </plugins>
         <testResources>
