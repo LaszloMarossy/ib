@@ -7,14 +7,6 @@ echo "Cleaning and rebuilding all modules..."
 # Change to the project root directory
 cd "$(dirname "$0")/.."
 
-# Build the parent project
-echo "Building parent project..."
-mvn clean install -U -DskipTests=true
-if [ $? -ne 0 ]; then
-    echo "Error building parent project"
-    exit 1
-fi
-
 # Build the common module
 echo "Building common module..."
 cd ib-common

@@ -17,6 +17,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,6 +36,10 @@ public class BasicTrader {
   protected static final BigDecimal TRADING_FEE_SELL = new BigDecimal("0.99");
   protected static final BigDecimal BUY_AMT = new BigDecimal(PropertiesUtil.getProperty("buy.amt"));
   protected static final BigDecimal SELL_AMT = new BigDecimal(PropertiesUtil.getProperty("sell.amt"));
+  // keeping configured constants for long/short term moving average calc
+  private int ltma = PropertiesUtil.getProperty("ltma") != null ? Integer.parseInt(PropertiesUtil.getProperty("ltma")) : 20;
+  private int stma = PropertiesUtil.getProperty("stma") != null ? Integer.parseInt(PropertiesUtil.getProperty("stma")) : 5;
+
 
   // the ID of the current trade is divisible by 10 so that we can insert a pretendTrade and maintain
   protected static final int TRADE_ID_OFFSET = 5;
@@ -423,14 +429,11 @@ public class BasicTrader {
    * get all info into place for making trade decisions
    */
   public void calculateTrends(Trade trade, TradeSnapshot tradeSnapshot, OrderBookPayload orderBook) {
-    // Add the new trade price to the queue, and as the latest price, before calculating trends
-    // this should be performed regardless of a pause in running the process
-    trendData.addTradePrice(trade.getPrice());
-    trendData.addTradeAmount(trade.getAmount());
 
-    tradeSnapshot.updateTradePriceRelToBest(orderBook);
-    tradeSnapshot.updateMovingAverages(trendData.getTradePricesQueue());
-    tradeSnapshot.updateSumOfTrade(lastProcessedTrade != null ? lastProcessedTrade.getPrice() : null);
+    includeNewTrade(trade);
+    updateTradePriceRelToBest(tradeSnapshot, orderBook);
+    updateMovingAverages(tradeSnapshot);
+    updateTradingAmountMomentum(tradeSnapshot);
   }
 
   /**
@@ -463,7 +466,7 @@ public class BasicTrader {
     }
 
     if (useSumAmtUpVsDown) {
-      sellingTime = sellingTime && tradeSnapshot.SAUp > tradeSnapshot.SADown;
+      sellingTime = sellingTime && tradeSnapshot.tradeAmountIncrease > tradeSnapshot.tradeAmountDecrease;
     }
 
     if (useTradePriceCloserToAskVsBuy) {
@@ -497,7 +500,7 @@ public class BasicTrader {
     }
 
     if (useSumAmtUpVsDown) {
-      buyingTime = buyingTime && tradeSnapshot.SAUp < tradeSnapshot.SADown;
+      buyingTime = buyingTime && tradeSnapshot.tradeAmountIncrease < tradeSnapshot.tradeAmountDecrease;
     }
 
     if (useTradePriceCloserToAskVsBuy) {
@@ -566,6 +569,101 @@ public class BasicTrader {
     tradeSnapshot.setCoinBalance(coinBalance);
     // pretend trades in chunks would carry this snapshot acct value
     tradeSnapshot.setAccountValueInChunk(calculateAccountValue(tradeSnapshot));
+
+  }
+
+  public void updateTradingAmountMomentum(TradeSnapshot tradeSnapshot) {
+    Iterator<Trade> tradeIterator = trendData.getTradesQueue().descendingIterator();
+
+    BigDecimal upAmounts = BigDecimal.ZERO;
+    BigDecimal downAmounts = BigDecimal.ZERO;
+
+    while (tradeIterator.hasNext()) {
+      Trade trade = tradeIterator.next();
+
+      if (trade.getNthStatus().startsWith(TICK_UP.toString())) {
+        upAmounts = upAmounts.add(trade.getAmount());
+      } else if (trade.getNthStatus().startsWith(TICK_DOWN.toString())) {
+        downAmounts = downAmounts.add(trade.getAmount());
+      }
+
+    }
+
+    // Update the trade snapshot with the calculated sums
+    tradeSnapshot.tradeAmountIncrease = upAmounts.doubleValue();
+    tradeSnapshot.tradeAmountDecrease = downAmounts.doubleValue();
+  }
+
+  /**
+   * Updates the trade price relative to best bid, and best ask prices
+   * - Positive values indicate closer to bid (buy signal)
+   * - Negative values indicate closer to ask (sell signal)
+   *
+   * @param orderBook containing the asks and bids array
+   */
+  public void updateTradePriceRelToBest(TradeSnapshot tradeSnapshot, OrderBookPayload orderBook) {
+    if (orderBook == null || orderBook.getBids() == null || orderBook.getAsks() == null
+        || orderBook.getBids().length == 0 || orderBook.getAsks().length == 0) {
+      // If orderbook is null or empty, set a neutral value
+      tradeSnapshot.priceCloserToBestAsk = 0.0;
+      return;
+    }
+
+    // Get best bid (highest buy price) - first in the bids array
+    Order bestBid = orderBook.getBids()[0];
+    BigDecimal bestBidPrice = bestBid.getP();
+
+    // Get best ask (lowest sell price) - first in the asks array
+    Order bestAsk = orderBook.getAsks()[0];
+    BigDecimal bestAskPrice = bestAsk.getP();
+
+    if (bestBidPrice != null && bestAskPrice != null) {
+      // Calculate distances
+      double distanceToBid = Math.abs(tradeSnapshot.tradePrice - bestBidPrice.doubleValue());
+      double distanceToAsk = Math.abs(tradeSnapshot.tradePrice - bestAskPrice.doubleValue());
+
+      // Calculate position relative to averages
+      tradeSnapshot.priceCloserToBestAsk = distanceToAsk - distanceToBid;
+    } else {
+      // If prices are null, set a neutral value
+      tradeSnapshot.priceCloserToBestAsk = 0.0;
+    }
+  }
+
+
+
+  /**
+   *
+   * @param tradeSnapshot
+   */
+  public void updateMovingAverages(TradeSnapshot tradeSnapshot) {
+    Deque<BigDecimal> tradePricesQueue = trendData.getTradePricesQueue();
+    if (tradePricesQueue.isEmpty()) {
+      return;
+    }
+
+    // Calculate short-term moving average (all prices in the queue)
+    double sum = 0.0;
+    int counter = 0;
+    for (BigDecimal price : tradePricesQueue) {
+      counter++;
+      sum += price.doubleValue();
+      if (counter == stma) {
+        tradeSnapshot.STMAPrice = sum / counter;
+      }
+      if (counter == ltma) {
+        tradeSnapshot.LTMAPrice = sum / counter;
+        break;
+      }
+    }
+  }
+
+  private void includeNewTrade(Trade trade) {
+    // Add the new trade price to the queue, and as the latest price, before calculating trends
+    // this should be performed regardless of a pause in running the process
+    trendData.addTrade(trade);
+    trendData.addTradePrice(trade.getPrice());
+    trendData.addTradeAmount(trade.getAmount());
 
   }
 

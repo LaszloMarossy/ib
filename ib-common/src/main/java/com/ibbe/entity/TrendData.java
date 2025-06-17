@@ -28,7 +28,9 @@ public class TrendData implements Serializable {
     private final Deque<BigDecimal> tradeAmountsQueue;
     private final Deque<BigDecimal> bidAmountsQueue;
     private final Deque<BigDecimal> askAmountsQueue;
-    
+
+    private final Deque<Trade> tradesQueue;
+
     // Maximum size for the queues
     private final int maxQueueSize;
     
@@ -56,6 +58,7 @@ public class TrendData implements Serializable {
         this.tradeAmountsQueue = new ArrayDeque<>(queueSize);
         this.bidAmountsQueue = new ArrayDeque<>(queueSize);
         this.askAmountsQueue = new ArrayDeque<>(queueSize);
+        this.tradesQueue = new ArrayDeque<>(queueSize);
         
         this.lastPrice = null;
         this.lastTradeTimestamp = null;
@@ -114,7 +117,21 @@ public class TrendData implements Serializable {
         }
         askAmountsQueue.addFirst(amount); // Add newest element at the beginning
     }
-    
+
+    /**
+     *
+     */
+    public void addTrade(Trade trade) {
+        if (tradesQueue.size() >= maxQueueSize) {
+            tradesQueue.removeLast();
+        }
+        tradesQueue.addFirst(trade);
+    }
+
+    public Deque<Trade> getTradesQueue() {
+        return tradesQueue;
+    }
+
     /**
      * Updates the timestamp of the most recent trade
      * 

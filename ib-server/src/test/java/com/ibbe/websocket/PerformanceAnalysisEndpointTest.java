@@ -214,6 +214,12 @@ public class PerformanceAnalysisEndpointTest {
         assertEquals("PRETEND buy", buy3.getPretendTrade().getMakerSide(), "Pretend trade 5 (BUY @ TID 21) makerSide incorrect.");
         System.out.println("Extended Test - BUY @ TID 21: Verified makerSide is 'PRETEND buy'.");
 
+        // assert moving averages
+        assertEquals(10522.0, buy3.STMAPrice, "STMAPrice for pretend BUY (TID 21) is wrong.");
+        System.out.println("Extended Test - BUY @ TID 21: Verified moving average.");
+        assertEquals(10517.0, buy3.LTMAPrice, "LTMAPrice for pretend BUY (TID 21) is wrong.");
+        System.out.println("Extended Test - BUY @ TID 21: Verified LTMAPrice.");
+
         TradeSnapshot sell3 = capturedSnapshots.get(5);
         assertEquals(24, sell3.getTradeId(), "Pretend trade 6 (SELL) should have TID 24.");
         System.out.println("Extended Test - SELL @ TID 24: Verified Trade ID.");
@@ -221,6 +227,12 @@ public class PerformanceAnalysisEndpointTest {
         System.out.println("Extended Test - SELL @ TID 24: Verified PretendTrade object exists.");
         assertEquals("PRETEND sell", sell3.getPretendTrade().getMakerSide(), "Pretend trade 6 (SELL @ TID 24) makerSide incorrect.");
         System.out.println("Extended Test - SELL @ TID 24: Verified makerSide is 'PRETEND sell'.");
+
+        // assert moving averages
+        assertEquals(10532.0, sell3.STMAPrice, "STMAPrice for pretend BUY (TID 24) is wrong.");
+        System.out.println("Extended Test - BUY @ TID 24: Verified moving average.");
+        assertEquals(10518.5, sell3.LTMAPrice, "LTMAPrice for pretend BUY (TID 24) is wrong.");
+        System.out.println("Extended Test - BUY @ TID 24: Verified LTMAPrice.");
     }
 }
 
