@@ -141,7 +141,7 @@ public class LiveTrader extends BasicTrader implements PropertyChangeListener {
   public TradeConfig getTradeConfig() {
     return new TradeConfig(
         id, String.valueOf(upN), String.valueOf(downN), useAvgBidVsAvgAsk, useShortVsLongMovAvg,
-        useSumAmtUpVsDown, useTradePriceCloserToAskVsBuy);
+        useTradingAmountMomentum, useTradePriceCloserToAskVsBuy);
   }
 
   public FxTradesDisplayData getFxTradesDisplayData() {

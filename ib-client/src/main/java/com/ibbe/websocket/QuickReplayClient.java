@@ -169,16 +169,12 @@ public class QuickReplayClient extends TextWebSocketHandler {
         // Parse the criteria string into boolean values
         boolean useAvgBidVsAvgAsk = criteriaStr.contains("avgBidVsAvgAsk");
         boolean useShortVsLongMovAvg = criteriaStr.contains("shortVsLongMovAvg");
-        boolean useSumAmtUpVsDown = criteriaStr.contains("sumAmtUpVsDown");
+        boolean useTradingAmountMomentum = criteriaStr.contains("sumAmtUpVsDown");
         boolean useTradePriceCloserToAskVsBuy = criteriaStr.contains("tradePriceCloserToAskVsBuy");
 
         // Call the main method with the parsed criteria and the provided configId
-        startPerformanceAnalysis(ups, downs,
-                              useAvgBidVsAvgAsk,
-                              useShortVsLongMovAvg,
-                              useSumAmtUpVsDown,
-                              useTradePriceCloserToAskVsBuy,
-                              configId);
+        startPerformanceAnalysis(ups, downs, useAvgBidVsAvgAsk, useShortVsLongMovAvg,
+            useTradingAmountMomentum, useTradePriceCloserToAskVsBuy, configId);
     }
 
     /**
@@ -188,21 +184,17 @@ public class QuickReplayClient extends TextWebSocketHandler {
      * @param downs The downs value for the configuration
      * @param useAvgBidVsAvgAsk Whether to use average bid vs average ask in trading decisions
      * @param useShortVsLongMovAvg Whether to use short vs long moving average in trading decisions
-     * @param useSumAmtUpVsDown Whether to use sum amount up vs down in trading decisions
+     * @param useTradingAmountMomentum Whether to use sum amount up vs down in trading decisions
      * @param useTradePriceCloserToAskVsBuy Whether to use trade price closer to ask vs buy in trading decisions
      */
     public void startPerformanceAnalysis(String ups, String downs,
                                        boolean useAvgBidVsAvgAsk,
                                        boolean useShortVsLongMovAvg,
-                                       boolean useSumAmtUpVsDown,
+                                       boolean useTradingAmountMomentum,
                                        boolean useTradePriceCloserToAskVsBuy) {
         // Generate a random configId and call the method that takes a configId
-        startPerformanceAnalysis(ups, downs,
-                              useAvgBidVsAvgAsk,
-                              useShortVsLongMovAvg,
-                              useSumAmtUpVsDown,
-                              useTradePriceCloserToAskVsBuy,
-                              RandomString.getRandomString());
+        startPerformanceAnalysis(ups, downs, useAvgBidVsAvgAsk, useShortVsLongMovAvg,
+            useTradingAmountMomentum, useTradePriceCloserToAskVsBuy, RandomString.getRandomString());
     }
 
     /**
@@ -212,14 +204,14 @@ public class QuickReplayClient extends TextWebSocketHandler {
      * @param downs The downs value for the configuration
      * @param useAvgBidVsAvgAsk Whether to use average bid vs average ask in trading decisions
      * @param useShortVsLongMovAvg Whether to use short vs long moving average in trading decisions
-     * @param useSumAmtUpVsDown Whether to use sum amount up vs down in trading decisions
+     * @param useTradingAmountMomentum Whether to use sum amount up vs down in trading decisions
      * @param useTradePriceCloserToAskVsBuy Whether to use trade price closer to ask vs buy in trading decisions
      * @param configId The configuration ID to use
      */
     public void startPerformanceAnalysis(String ups, String downs,
                                        boolean useAvgBidVsAvgAsk,
                                        boolean useShortVsLongMovAvg,
-                                       boolean useSumAmtUpVsDown,
+                                       boolean useTradingAmountMomentum,
                                        boolean useTradePriceCloserToAskVsBuy,
                                        String configId) {
         executor.submit(() -> {
@@ -252,7 +244,7 @@ public class QuickReplayClient extends TextWebSocketHandler {
 
                 // First, create the TradeConfig using the REST POST endpoint
                 TradeConfig tradeConfig = new TradeConfig(configId, ups, downs, useAvgBidVsAvgAsk,
-                    useShortVsLongMovAvg, useSumAmtUpVsDown, useTradePriceCloserToAskVsBuy);
+                    useShortVsLongMovAvg, useTradingAmountMomentum, useTradePriceCloserToAskVsBuy);
 
                 // Create JSON representation
                 String configJson = objectMapper.writeValueAsString(tradeConfig);

@@ -90,7 +90,7 @@ public class BasicTrader {
   protected final int upN;
   protected final boolean useAvgBidVsAvgAsk;
   protected final boolean useShortVsLongMovAvg;
-  protected final boolean useSumAmtUpVsDown;
+  protected final boolean useTradingAmountMomentum;
   protected final boolean useTradePriceCloserToAskVsBuy;
   // represents the tade config's ID; not used in performance trading
   protected final String id;
@@ -154,7 +154,7 @@ public class BasicTrader {
     id = tradeConfig.getId();
     useAvgBidVsAvgAsk = tradeConfig.isUseAvgBidVsAvgAsk();
     useShortVsLongMovAvg = tradeConfig.isUseShortVsLongMovAvg();
-    useSumAmtUpVsDown = tradeConfig.isUseSumAmtUpVsDown();
+    useTradingAmountMomentum = tradeConfig.isUseTradingAmountMomentum();
     useTradePriceCloserToAskVsBuy = tradeConfig.isUseTradePriceCloserToAskVsBuy();
 
     logger.info("Performance according to UPS:{} DOWNS:{} ID:{}", upN, downN, id);
@@ -451,7 +451,7 @@ public class BasicTrader {
     }
     boolean sellingTime = false;
     // first condition is that ANY of the markers are set for selling
-    sellingTime = downN > 0 || useAvgBidVsAvgAsk || useShortVsLongMovAvg || useSumAmtUpVsDown || useTradePriceCloserToAskVsBuy;
+    sellingTime = downN > 0 || useAvgBidVsAvgAsk || useShortVsLongMovAvg || useTradingAmountMomentum || useTradePriceCloserToAskVsBuy;
 
     if (downN > 0) {
       sellingTime = sellingTime && (trade.getNthStatus().equals(TICK_DOWN.toString() + downN) && trade.getTick().equals(TICK_DOWN));
@@ -465,7 +465,7 @@ public class BasicTrader {
       sellingTime = sellingTime && tradeSnapshot.STMAPrice > tradeSnapshot.LTMAPrice;
     }
 
-    if (useSumAmtUpVsDown) {
+    if (useTradingAmountMomentum) {
       sellingTime = sellingTime && tradeSnapshot.tradeAmountIncrease > tradeSnapshot.tradeAmountDecrease;
     }
 
@@ -485,7 +485,7 @@ public class BasicTrader {
 
     boolean buyingTime = false;
     // first condition is that ANY of the markers are set for buying
-    buyingTime = upN > 0 || useAvgBidVsAvgAsk || useShortVsLongMovAvg || useSumAmtUpVsDown || useTradePriceCloserToAskVsBuy;
+    buyingTime = upN > 0 || useAvgBidVsAvgAsk || useShortVsLongMovAvg || useTradingAmountMomentum || useTradePriceCloserToAskVsBuy;
 
     if (upN > 0) {
       buyingTime = buyingTime && (trade.getNthStatus().equals(TICK_UP.toString() + upN) && trade.getTick().equals(TICK_UP));
@@ -499,7 +499,7 @@ public class BasicTrader {
       buyingTime = buyingTime && tradeSnapshot.STMAPrice < tradeSnapshot.LTMAPrice;
     }
 
-    if (useSumAmtUpVsDown) {
+    if (useTradingAmountMomentum) {
       buyingTime = buyingTime && tradeSnapshot.tradeAmountIncrease < tradeSnapshot.tradeAmountDecrease;
     }
 

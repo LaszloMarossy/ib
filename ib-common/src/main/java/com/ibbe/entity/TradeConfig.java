@@ -13,7 +13,7 @@ public class TradeConfig {
     // New boolean fields for trading criteria
     private boolean useAvgBidVsAvgAsk;
     private boolean useShortVsLongMovAvg;
-    private boolean useSumAmtUpVsDown;
+    private boolean useTradingAmountMomentum;
     private boolean useTradePriceCloserToAskVsBuy;
 
     /**
@@ -38,7 +38,7 @@ public class TradeConfig {
      * @param downs the downs parameter
      * @param useAvgBidVsAvgAsk whether to use average bid vs average ask
      * @param useShortVsLongMovAvg whether to use short-term vs long-term moving average
-     * @param useSumAmtUpVsDown whether to use sum amount up vs down
+     * @param useTradingAmountMomentum whether to use sum amount up vs down
      * @param useTradePriceCloserToAskVsBuy whether to use trade price closer to ask vs buy
      */
     public TradeConfig(@JsonProperty("id") String id,
@@ -46,14 +46,14 @@ public class TradeConfig {
                      @JsonProperty("downs") String downs,
                      @JsonProperty("useAvgBidVsAvgAsk") boolean useAvgBidVsAvgAsk,
                      @JsonProperty("useShortVsLongMovAvg") boolean useShortVsLongMovAvg,
-                     @JsonProperty("useSumAmtUpVsDown") boolean useSumAmtUpVsDown,
+                     @JsonProperty("useTradingAmountMomentum") boolean useTradingAmountMomentum,
                      @JsonProperty("useTradePriceCloserToAskVsBuy") boolean useTradePriceCloserToAskVsBuy) {
         this.id = id == null ? RandomString.getRandomString() : id;
         this.ups = ups;
         this.downs = downs;
         this.useAvgBidVsAvgAsk = useAvgBidVsAvgAsk;
         this.useShortVsLongMovAvg = useShortVsLongMovAvg;
-        this.useSumAmtUpVsDown = useSumAmtUpVsDown;
+        this.useTradingAmountMomentum = useTradingAmountMomentum;
         this.useTradePriceCloserToAskVsBuy = useTradePriceCloserToAskVsBuy;
     }
 
@@ -125,17 +125,17 @@ public class TradeConfig {
      *
      * @return whether to use sum amount up vs down
      */
-    public boolean isUseSumAmtUpVsDown() {
-        return useSumAmtUpVsDown;
+    public boolean isUseTradingAmountMomentum() {
+        return useTradingAmountMomentum;
     }
 
     /**
      * Sets whether to use sum amount up vs down.
      *
-     * @param useSumAmtUpVsDown whether to use sum amount up vs down
+     * @param useTradingAmountMomentum whether to use sum amount up vs down
      */
-    public void setUseSumAmtUpVsDown(boolean useSumAmtUpVsDown) {
-        this.useSumAmtUpVsDown = useSumAmtUpVsDown;
+    public void setUseTradingAmountMomentum(boolean useTradingAmountMomentum) {
+        this.useTradingAmountMomentum = useTradingAmountMomentum;
     }
 
     /**
@@ -164,7 +164,7 @@ public class TradeConfig {
             ", downs='" + downs + "'" +
             ", useAvgBidVsAvgAsk=" + useAvgBidVsAvgAsk +
             ", useShortVsLongMovAvg=" + useShortVsLongMovAvg +
-            ", useSumAmtUpVsDown=" + useSumAmtUpVsDown +
+            ", useTradingAmountMomentum=" + useTradingAmountMomentum +
             ", useTradePriceCloserToAskVsBuy=" + useTradePriceCloserToAskVsBuy +
             "}";
     }

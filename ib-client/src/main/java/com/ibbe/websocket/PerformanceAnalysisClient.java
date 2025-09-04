@@ -163,50 +163,25 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
     }
     
     /**
-     * Starts the performance analysis by connecting to the server with a criteria string.
-     * This method is used by the QuickReplayWindow.
-     * 
-     * @param ups The ups value for the configuration
-     * @param downs The downs value for the configuration
-     * @param criteriaStr Comma-separated string of criteria names to use
-     * @param configId The configuration ID to use
-     */
-    public void startPerformanceAnalysis(String ups, String downs, String criteriaStr, String configId) {
-        // Parse the criteria string into boolean values
-        boolean useAvgBidVsAvgAsk = criteriaStr.contains("avgBidVsAvgAsk");
-        boolean useShortVsLongMovAvg = criteriaStr.contains("shortVsLongMovAvg");
-        boolean useSumAmtUpVsDown = criteriaStr.contains("sumAmtUpVsDown");
-        boolean useTradePriceCloserToAskVsBuy = criteriaStr.contains("tradePriceCloserToAskVsBuy");
-        
-        // Call the main method with the parsed criteria and the provided configId
-        startPerformanceAnalysis(ups, downs, 
-                              useAvgBidVsAvgAsk,
-                              useShortVsLongMovAvg,
-                              useSumAmtUpVsDown,
-                              useTradePriceCloserToAskVsBuy,
-                              configId);
-    }
-    
-    /**
      * Starts the performance analysis by connecting to the server with expanded criteria options.
      * 
      * @param ups The ups value for the configuration
      * @param downs The downs value for the configuration
      * @param useAvgBidVsAvgAsk Whether to use average bid vs average ask in trading decisions
      * @param useShortVsLongMovAvg Whether to use short vs long moving average in trading decisions
-     * @param useSumAmtUpVsDown Whether to use sum amount up vs down in trading decisions
+     * @param useTradingAmountMomentum Whether to use sum amount up vs down in trading decisions
      * @param useTradePriceCloserToAskVsBuy Whether to use trade price closer to ask vs buy in trading decisions
      */
     public void startPerformanceAnalysis(String ups, String downs, 
                                        boolean useAvgBidVsAvgAsk,
                                        boolean useShortVsLongMovAvg,
-                                       boolean useSumAmtUpVsDown,
+                                       boolean useTradingAmountMomentum,
                                        boolean useTradePriceCloserToAskVsBuy) {
         // Generate a random configId and call the method that takes a configId
         startPerformanceAnalysis(ups, downs,
                               useAvgBidVsAvgAsk,
                               useShortVsLongMovAvg,
-                              useSumAmtUpVsDown,
+                              useTradingAmountMomentum,
                               useTradePriceCloserToAskVsBuy,
                               RandomString.getRandomString());
     }
@@ -218,14 +193,14 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
      * @param downs The downs value for the configuration
      * @param useAvgBidVsAvgAsk Whether to use average bid vs average ask in trading decisions
      * @param useShortVsLongMovAvg Whether to use short vs long moving average in trading decisions
-     * @param useSumAmtUpVsDown Whether to use sum amount up vs down in trading decisions
+     * @param useTradingAmountMomentum Whether to use sum amount up vs down in trading decisions
      * @param useTradePriceCloserToAskVsBuy Whether to use trade price closer to ask vs buy in trading decisions
      * @param configId The configuration ID to use
      */
     public void startPerformanceAnalysis(String ups, String downs, 
                                        boolean useAvgBidVsAvgAsk,
                                        boolean useShortVsLongMovAvg,
-                                       boolean useSumAmtUpVsDown,
+                                       boolean useTradingAmountMomentum,
                                        boolean useTradePriceCloserToAskVsBuy,
                                        String configId) {
         executor.submit(() -> {
@@ -258,7 +233,7 @@ public class PerformanceAnalysisClient extends TextWebSocketHandler {
                 
                 // First, create the TradeConfig using the REST POST endpoint
                 TradeConfig tradeConfig = new TradeConfig(configId, ups, downs, useAvgBidVsAvgAsk,
-                    useShortVsLongMovAvg, useSumAmtUpVsDown, useTradePriceCloserToAskVsBuy);
+                    useShortVsLongMovAvg, useTradingAmountMomentum, useTradePriceCloserToAskVsBuy);
                 
                 // Create JSON representation
                 String configJson = objectMapper.writeValueAsString(tradeConfig);
